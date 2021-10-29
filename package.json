@@ -3,6 +3,7 @@
     "start": "parcel src/index.html"
   },
   "dependencies": {
+    "@types/three": "^0.133.1",
     "three": "^0.134.0"
   },
   "devDependencies": {
