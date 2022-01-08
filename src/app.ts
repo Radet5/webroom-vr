@@ -225,6 +225,8 @@ function onSelectEnd( event ) {
     //object.material.emissive.b = 0;
     phys_objs.attach( object );
 
+    sphereBody.position.copy(object.position);
+
     controller.userData.selected = undefined;
 
   }
@@ -317,11 +319,13 @@ function render() {
 
   if(controller1.userData.selected != sphereMesh && controller2.userData.selected != sphereMesh)
   {
-    sphereMesh.position.copy(sphereBody.position)
-    sphereMesh.quaternion.copy(sphereBody.quaternion)
+    sphereMesh.position.copy(sphereBody.position);
+    sphereMesh.quaternion.copy(sphereBody.quaternion);
+    console.log(sphereMesh.position);
   } else {
-    sphereBody.position.copy(sphereMesh.position)
-    sphereBody.quaternion.copy(sphereMesh.quaternion)
+    //sphereBody.position.copy(sphereMesh.position);
+    //sphereBody.quaternion.copy(sphereMesh.quaternion);
+    console.log(sphereMesh.position);
   }
 
 
