@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import * as CANNON from 'cannon-es';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
@@ -10,7 +11,17 @@ let camera, scene, renderer;
 let controller1, controller2;
 let controllerGrip1, controllerGrip2;
 let wasPresenting;
-let user, group;
+let user, phys_objs;
+
+let lastCallTime;
+const timeStep = 1/60;
+
+const world = new CANNON.World({
+    gravity: new CANNON.Vec3(0, -9.82, 0), // m/s²
+  });
+
+let sphereMesh, sphereBody;
+
 let cameraVector = new THREE.Vector3(); // create once and reuse it!
 const prevGamePads = new Map();
 let speedFactor = [0.1, 0.1, 0.1, 0.1];
@@ -23,17 +34,36 @@ let raycaster;
 let controls, oControls;
 
 init();
+initCannon();
 animate();
 
+function initCannon() {
+  const radius = 0.1 // m
+  sphereBody = new CANNON.Body({
+    mass: 5, // kg
+    shape: new CANNON.Sphere(radius),
+  })
+  sphereBody.position.set(0, 1, 1.2) // m
+  world.addBody(sphereBody)
+  const groundBody = new CANNON.Body({
+    type: CANNON.Body.STATIC,
+    shape: new CANNON.Plane(),
+  })
+  groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0) // make it face up
+  groundBody.position.set(0,-1.325,0);
+  world.addBody(groundBody)
+}
+
 function init() {
+
   container = document.createElement( 'div' );
   document.body.appendChild( container );
 
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10);
 
-  group = new THREE.Group();
-  scene.add( group );
+  phys_objs = new THREE.Group();
+  scene.add( phys_objs );
 
   renderer = new THREE.WebGLRenderer( { antialias: true } );
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -44,12 +74,22 @@ function init() {
   container.appendChild(renderer.domElement);
   document.body.appendChild( VRButton.createButton( renderer ) );
 
-  const boxgeometry = new THREE.BoxGeometry();
-  const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-  const cube = new THREE.Mesh(boxgeometry, material);
-  cube.scale.set(0.1, 0.1, 0.1);
-  cube.translateZ(1);
-  group.add(cube);
+  //const boxgeometry = new THREE.BoxGeometry();
+  //const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+  //const cube = new THREE.Mesh(boxgeometry, material);
+  //cube.scale.set(0.1, 0.1, 0.1);
+  //cube.translateZ(1);
+  //phys_objs.add(cube);
+
+  const radius = 0.1 // m
+  const geo = new THREE.SphereGeometry(radius)
+  const mat= new THREE.MeshBasicMaterial({ color: 0xff0000 });
+  sphereMesh = new THREE.Mesh(geo, mat)
+  sphereMesh.position.set(0, 1, 1.2) // m
+  scene.add(sphereMesh)
+
+  sphereMesh.userData.parent = sphereBody;
+  phys_objs.add(sphereMesh);
 
 // controllers
 
@@ -183,7 +223,7 @@ function onSelectEnd( event ) {
 
     const object = controller.userData.selected;
     //object.material.emissive.b = 0;
-    group.attach( object );
+    phys_objs.attach( object );
 
     controller.userData.selected = undefined;
 
@@ -199,7 +239,7 @@ function getIntersections( controller ) {
   raycaster.ray.origin.setFromMatrixPosition( controller.matrixWorld );
   raycaster.ray.direction.set( 0, 0, - 1 ).applyMatrix4( tempMatrix );
 
-  return raycaster.intersectObjects( group.children, false );
+  return raycaster.intersectObjects( phys_objs.children, false );
 
 }
 
@@ -265,6 +305,25 @@ function animate() {
 }
 
 function render() {
+
+  const time = performance.now() / 1000 // seconds
+  if (!lastCallTime) {
+    world.step(timeStep)
+  } else {
+    const dt = time - lastCallTime
+    world.step(timeStep, dt)
+  }
+  lastCallTime = time
+
+  if(controller1.userData.selected != sphereMesh && controller2.userData.selected != sphereMesh)
+  {
+    sphereMesh.position.copy(sphereBody.position)
+    sphereMesh.quaternion.copy(sphereBody.quaternion)
+  } else {
+    sphereBody.position.copy(sphereMesh.position)
+    sphereBody.quaternion.copy(sphereMesh.quaternion)
+  }
+
 
   cleanIntersected();
 
