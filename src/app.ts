@@ -12,6 +12,7 @@ let controller1, controller2;
 let controllerGrip1, controllerGrip2;
 let wasPresenting;
 let user, phys_objs;
+let phys_obj_bodies = {};
 
 let lastCallTime;
 const timeStep = 1/60;
@@ -34,17 +35,23 @@ let raycaster;
 let controls, oControls;
 
 init();
-initCannon();
 animate();
 
-function initCannon() {
-  const radius = 0.1 // m
-  sphereBody = new CANNON.Body({
-    mass: 5, // kg
-    shape: new CANNON.Sphere(radius),
-  })
-  sphereBody.position.set(0, 1, 1.2) // m
-  world.addBody(sphereBody)
+function addPhysObject(body, mesh, name, position) {
+  phys_obj_bodies[name] = body;
+  body.position.set(...position); // m
+  world.addBody(body);
+
+  mesh.userData.name = name;
+  mesh.position.set(...position); // m
+  scene.add(mesh);
+
+  phys_objs.add(mesh);
+
+}
+
+function init() {
+
   const groundBody = new CANNON.Body({
     type: CANNON.Body.STATIC,
     shape: new CANNON.Plane(),
@@ -52,9 +59,6 @@ function initCannon() {
   groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0) // make it face up
   groundBody.position.set(0,-1.325,0);
   world.addBody(groundBody)
-}
-
-function init() {
 
   container = document.createElement( 'div' );
   document.body.appendChild( container );
@@ -74,22 +78,24 @@ function init() {
   container.appendChild(renderer.domElement);
   document.body.appendChild( VRButton.createButton( renderer ) );
 
-  //const boxgeometry = new THREE.BoxGeometry();
-  //const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-  //const cube = new THREE.Mesh(boxgeometry, material);
-  //cube.scale.set(0.1, 0.1, 0.1);
-  //cube.translateZ(1);
-  //phys_objs.add(cube);
+  const boxgeometry = new THREE.BoxGeometry();
+  const boxMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+  const boxMesh = new THREE.Mesh(boxgeometry, boxMaterial);
+  boxMesh.scale.set(0.1, 0.1, 0.1);
+  const size = 0.05;
+  const halfExtents = new CANNON.Vec3(size, size, size)
+  const boxShape = new CANNON.Box(halfExtents)
+  const boxBody = new CANNON.Body({ mass: 1, shape: boxShape })
+  addPhysObject(boxBody, boxMesh, "box", [-1,0,1]);
 
-  const radius = 0.1 // m
-  const geo = new THREE.SphereGeometry(radius)
+  sphereBody = new CANNON.Body({
+    mass: 5, // kg
+    shape: new CANNON.Sphere(0.1),
+  })
+  const geo = new THREE.SphereGeometry(0.1)
   const mat= new THREE.MeshBasicMaterial({ color: 0xff0000 });
   sphereMesh = new THREE.Mesh(geo, mat)
-  sphereMesh.position.set(0, 1, 1.2) // m
-  scene.add(sphereMesh)
-
-  sphereMesh.userData.parent = sphereBody;
-  phys_objs.add(sphereMesh);
+  addPhysObject(sphereBody, sphereMesh, 'sphere', [0,1,1.2]);
 
 // controllers
 
@@ -225,7 +231,7 @@ function onSelectEnd( event ) {
     //object.material.emissive.b = 0;
     phys_objs.attach( object );
 
-    sphereBody.position.copy(object.position);
+    phys_obj_bodies[object.userData.name].position.copy(object.position);
 
     controller.userData.selected = undefined;
 
@@ -317,16 +323,14 @@ function render() {
   }
   lastCallTime = time
 
-  if(controller1.userData.selected != sphereMesh && controller2.userData.selected != sphereMesh)
-  {
-    sphereMesh.position.copy(sphereBody.position);
-    sphereMesh.quaternion.copy(sphereBody.quaternion);
-    console.log(sphereMesh.position);
-  } else {
-    //sphereBody.position.copy(sphereMesh.position);
-    //sphereBody.quaternion.copy(sphereMesh.quaternion);
-    console.log(sphereMesh.position);
-  }
+  phys_objs.children.forEach(function(mesh) {
+    if(controller1.userData.selected != mesh && controller2.userData.selected != mesh)
+    {
+      const body = phys_obj_bodies[mesh.userData.name]
+      mesh.position.copy(body.position);
+      mesh.quaternion.copy(body.quaternion);
+    }
+  });
 
 
   cleanIntersected();
