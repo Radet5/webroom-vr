@@ -215,6 +215,11 @@ function onSelectStart( event ) {
     //object.material.emissive.b = 1;
     controller.attach( object );
 
+    const body = phys_obj_bodies[object.userData.name]
+    body.velocity.set(0,0,0);
+    body.angularVelocity.set(0,0,0)
+
+
     controller.userData.selected = object;
 
   }
@@ -231,7 +236,9 @@ function onSelectEnd( event ) {
     //object.material.emissive.b = 0;
     phys_objs.attach( object );
 
-    phys_obj_bodies[object.userData.name].position.copy(object.position);
+    const body = phys_obj_bodies[object.userData.name]
+    body.position.copy(object.position);
+    body.quaternion.copy(object.quaternion);
 
     controller.userData.selected = undefined;
 
