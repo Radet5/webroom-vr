@@ -17,6 +17,7 @@ let phys_obj_bodies = {};
 
 let lastCallTime;
 let temp_vec3 = new THREE.Vector3()
+let temp_quat = new THREE.Quaternion();
 let temp_displacement = new THREE.Vector3();
 let temp_velocity = new THREE.Vector3();
 const timeStep = 1/60;
@@ -245,12 +246,13 @@ function onSelectEnd( event ) {
 
     const object = controller.userData.selected;
     //object.material.emissive.b = 0;
-    phys_objs.attach( object );
 
     const body = phys_obj_bodies[object.userData.name]
-    body.position.copy(object.position);
-    body.quaternion.copy(object.quaternion);
-    body.velocity.copy(object.userData.throwVelocity);
+    body.position.copy(object.getWorldPosition(temp_vec3));
+    body.quaternion.copy(object.getWorldQuaternion(temp_quat));
+    body.velocity.copy(getControllerThrowVelocity(controller));
+
+    phys_objs.attach( object );
 
     controller.userData.selected = undefined;
 
@@ -349,6 +351,11 @@ function findControllerThrowVelocity(controller, dt) {
 
 function setControllerThrowVelocity(controller, velocity) {
   controller.userData.throwVelocity = velocity;
+}
+
+function getControllerThrowVelocity(controller) {
+  const throwVelocity = new THREE.Vector3();
+  return throwVelocity.copy(controller.userData.throwVelocity);
 }
 
 function render() {
