@@ -10,18 +10,20 @@ let container;
 let camera, scene, renderer;
 let controller1, controller2;
 let controllerGrip1, controllerGrip2;
+
 let wasPresenting;
 let user, phys_objs;
 let phys_obj_bodies = {};
 
 let lastCallTime;
+let temp_vec3 = new THREE.Vector3()
+let temp_displacement = new THREE.Vector3();
+let temp_velocity = new THREE.Vector3();
 const timeStep = 1/60;
 
 const world = new CANNON.World({
     gravity: new CANNON.Vec3(0, -9.82, 0), // m/s²
   });
-
-let sphereMesh, sphereBody;
 
 let cameraVector = new THREE.Vector3(); // create once and reuse it!
 const prevGamePads = new Map();
@@ -88,18 +90,26 @@ function init() {
   const boxBody = new CANNON.Body({ mass: 1, shape: boxShape })
   addPhysObject(boxBody, boxMesh, "box", [-1,0,1]);
 
-  sphereBody = new CANNON.Body({
+  const cvtp1_geometry = new THREE.SphereGeometry( 0.01);
+  const cvtpm_material = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+  const controllerVelocityTrackingPoint1 = new THREE.Mesh(cvtp1_geometry, cvtpm_material);
+  controllerVelocityTrackingPoint1.position.set(0, 0.05, 0);
+  controllerVelocityTrackingPoint1.userData.previousWorldPosition = new THREE.Vector3(0, 0.05, 0);
+  controllerVelocityTrackingPoint1.userData.name = "velocityTrackingPoint";
+
+  const sphereBody = new CANNON.Body({
     mass: 5, // kg
     shape: new CANNON.Sphere(0.1),
   })
   const geo = new THREE.SphereGeometry(0.1)
   const mat= new THREE.MeshBasicMaterial({ color: 0xff0000 });
-  sphereMesh = new THREE.Mesh(geo, mat)
+  const sphereMesh = new THREE.Mesh(geo, mat)
   addPhysObject(sphereBody, sphereMesh, 'sphere', [0,1,1.2]);
 
 // controllers
 
   controller1 = renderer.xr.getController( 0 );
+  controller1.add( controllerVelocityTrackingPoint1 );
   controller1.addEventListener( 'selectstart', onSelectStart );
   controller1.addEventListener( 'selectend', onSelectEnd );
   scene.add( controller1 );
@@ -215,6 +225,7 @@ function onSelectStart( event ) {
     //object.material.emissive.b = 1;
     controller.attach( object );
 
+    console.log( 'attach', object );
     const body = phys_obj_bodies[object.userData.name]
     body.velocity.set(0,0,0);
     body.angularVelocity.set(0,0,0)
@@ -239,6 +250,7 @@ function onSelectEnd( event ) {
     const body = phys_obj_bodies[object.userData.name]
     body.position.copy(object.position);
     body.quaternion.copy(object.quaternion);
+    body.velocity.copy(object.userData.throwVelocity);
 
     controller.userData.selected = undefined;
 
@@ -319,16 +331,42 @@ function animate() {
 
 }
 
+function findControllerThrowVelocity(controller, dt) {
+  const velocityTrackingPoint = controller.children.find(child => child.userData.name === 'velocityTrackingPoint');
+  const worldPosition = velocityTrackingPoint.getWorldPosition(temp_vec3);
+  const previousWorldPosition = velocityTrackingPoint.userData.previousWorldPosition;
+  temp_displacement.copy(worldPosition).sub(previousWorldPosition);
+  //displacement.length() > 0 ? console.log({worldPosition, previousWorldPosition, displacement}) : null;
+  if (dt > 0) {
+    temp_velocity.copy(temp_displacement).divideScalar(dt);
+  }
+  velocityTrackingPoint.userData.previousWorldPosition.copy(worldPosition);
+
+  //dx > 0 ? console.log({dx, dt, velocity}) : null;
+
+  return temp_velocity;
+}
+
+function setControllerThrowVelocity(controller, velocity) {
+  controller.userData.throwVelocity = velocity;
+}
+
 function render() {
 
   const time = performance.now() / 1000 // seconds
+  let dt = 0;
   if (!lastCallTime) {
     world.step(timeStep)
   } else {
-    const dt = time - lastCallTime
+    dt = time - lastCallTime
     world.step(timeStep, dt)
   }
   lastCallTime = time
+
+  const controller1ThrowVelocity = findControllerThrowVelocity(controller1, dt);
+  setControllerThrowVelocity(controller1, controller1ThrowVelocity);
+
+  //controller1.userData.throwVelocity.length() > 0 ? console.log(controller1.userData.throwVelocity) : null;
 
   phys_objs.children.forEach(function(mesh) {
     if(controller1.userData.selected != mesh && controller2.userData.selected != mesh)
