@@ -338,13 +338,13 @@ function findControllerThrowVelocity(controller, dt) {
   const worldPosition = velocityTrackingPoint.getWorldPosition(temp_vec3);
   const previousWorldPosition = velocityTrackingPoint.userData.previousWorldPosition;
   temp_displacement.copy(worldPosition).sub(previousWorldPosition);
-  //displacement.length() > 0 ? console.log({worldPosition, previousWorldPosition, displacement}) : null;
+  //temp_displacement.length() > 0 ? console.log({worldPosition, previousWorldPosition, temp_displacement}) : null;
   if (dt > 0) {
     temp_velocity.copy(temp_displacement).divideScalar(dt);
   }
   velocityTrackingPoint.userData.previousWorldPosition.copy(worldPosition);
 
-  //dx > 0 ? console.log({dx, dt, velocity}) : null;
+  //temp_displacement.length() > 0 ? console.log({temp_displacement, dt, temp_velocity}) : null;
 
   return temp_velocity;
 }
@@ -355,7 +355,8 @@ function setControllerThrowVelocity(controller, velocity) {
 
 function getControllerThrowVelocity(controller) {
   const throwVelocity = new THREE.Vector3();
-  return throwVelocity.copy(controller.userData.throwVelocity);
+  throwVelocity.copy(controller.userData.throwVelocity);
+  return throwVelocity;
 }
 
 function render() {
@@ -373,7 +374,7 @@ function render() {
   const controller1ThrowVelocity = findControllerThrowVelocity(controller1, dt);
   setControllerThrowVelocity(controller1, controller1ThrowVelocity);
 
-  //controller1.userData.throwVelocity.length() > 0 ? console.log(controller1.userData.throwVelocity) : null;
+  //controller1.userData.throwVelocity.length() > 2 ? console.log(controller1.userData.throwVelocity) : null;
 
   phys_objs.children.forEach(function(mesh) {
     if(controller1.userData.selected != mesh && controller2.userData.selected != mesh)
