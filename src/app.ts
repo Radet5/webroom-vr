@@ -111,6 +111,7 @@ function init() {
 
   controller1 = renderer.xr.getController( 0 );
   controller1.add( controllerVelocityTrackingPoint1 );
+  controller1.userData.throwVelocities = Array.from({length: 10}, (v, i) => new THREE.Vector3(0, 0, 0));
   controller1.addEventListener( 'selectstart', onSelectStart );
   controller1.addEventListener( 'selectend', onSelectEnd );
   scene.add( controller1 );
@@ -217,8 +218,10 @@ function onSelectStart( event ) {
   const controller = event.target;
 
   const intersections = getIntersections( controller );
+  controller.userData.carrying = true;
 
   if ( intersections.length > 0 ) {
+
 
     const intersection = intersections[ 0 ];
 
@@ -226,7 +229,7 @@ function onSelectStart( event ) {
     //object.material.emissive.b = 1;
     controller.attach( object );
 
-    console.log( 'attach', object );
+    //console.log( 'attach', object );
     const body = phys_obj_bodies[object.userData.name]
     body.velocity.set(0,0,0);
     body.angularVelocity.set(0,0,0)
@@ -241,6 +244,7 @@ function onSelectStart( event ) {
 function onSelectEnd( event ) {
 
   const controller = event.target;
+  controller.userData.carrying = false;
 
   if ( controller.userData.selected !== undefined ) {
 
@@ -350,13 +354,45 @@ function findControllerThrowVelocity(controller, dt) {
 }
 
 function setControllerThrowVelocity(controller, velocity) {
-  controller.userData.throwVelocity = velocity;
+  const newVelocity = new THREE.Vector3();
+  newVelocity.copy(velocity);
+  controller.userData.throwVelocities.shift();
+  controller.userData.throwVelocities.push(newVelocity);
+  //console.log({pushing: velocity, velocities: controller.userData.throwVelocities});
 }
 
 function getControllerThrowVelocity(controller) {
-  const throwVelocity = new THREE.Vector3();
-  throwVelocity.copy(controller.userData.throwVelocity);
-  return throwVelocity;
+  const avgThrowVelocity = new THREE.Vector3();
+  const throwVelocities = controller.userData.throwVelocities;
+  //console.log(throwVelocities);
+  const length = throwVelocities.length;
+
+  let maxPosition = 0;
+  let maxValue = 0;
+  for(var i = 0; i < length; i++) {
+    const value = throwVelocities[i].length()
+    if (value > maxValue) {
+      maxPosition = i;
+      maxValue = value;
+    }
+  }
+
+  let div = 1;
+  avgThrowVelocity.copy(throwVelocities[maxPosition]);
+  if (maxPosition > 0) {
+    avgThrowVelocity.add(throwVelocities[maxPosition - 1]);
+    div += 1;
+  }
+  if (maxPosition < length -1) {
+    avgThrowVelocity.add(throwVelocities[maxPosition + 1])
+    div += 1;
+  }
+
+  avgThrowVelocity.divideScalar(div);
+
+  //console.log({maxPosition, avgThrowVelocity, throwVelocities});
+  
+  return avgThrowVelocity;
 }
 
 function render() {
@@ -371,8 +407,14 @@ function render() {
   }
   lastCallTime = time
 
-  const controller1ThrowVelocity = findControllerThrowVelocity(controller1, dt);
-  setControllerThrowVelocity(controller1, controller1ThrowVelocity);
+  if (controller1.userData.carrying){
+    //console.log("carrying");
+    const controller1ThrowVelocity = findControllerThrowVelocity(controller1, dt);
+    setControllerThrowVelocity(controller1, controller1ThrowVelocity);
+  } else {
+    //console.log("not carrying");
+  }
+
 
   //controller1.userData.throwVelocity.length() > 2 ? console.log(controller1.userData.throwVelocity) : null;
 
@@ -474,7 +516,7 @@ function userMove() {
                       if (Math.abs(value) > 0.2) {
                           //set the speedFactor per axis, with acceleration when holding above threshold, up to a max speed
                           speedFactor[i] > 1 ? (speedFactor[i] = 1) : (speedFactor[i] *= 1.001);
-                          console.log(value, speedFactor[i], i);
+                          //console.log(value, speedFactor[i], i);
                           if (i == 2) {
                               //left and right axis on thumbsticks
                               if (data.handedness == "right") {
