@@ -10,18 +10,21 @@ let container;
 let camera, scene, renderer;
 let controller1, controller2;
 let controllerGrip1, controllerGrip2;
+
 let wasPresenting;
 let user, phys_objs;
 let phys_obj_bodies = {};
 
 let lastCallTime;
+let temp_vec3 = new THREE.Vector3()
+let temp_quat = new THREE.Quaternion();
+let temp_displacement = new THREE.Vector3();
+let temp_velocity = new THREE.Vector3();
 const timeStep = 1/60;
 
 const world = new CANNON.World({
     gravity: new CANNON.Vec3(0, -9.82, 0), // m/s²
   });
-
-let sphereMesh, sphereBody;
 
 let cameraVector = new THREE.Vector3(); // create once and reuse it!
 const prevGamePads = new Map();
@@ -88,18 +91,27 @@ function init() {
   const boxBody = new CANNON.Body({ mass: 1, shape: boxShape })
   addPhysObject(boxBody, boxMesh, "box", [-1,0,1]);
 
-  sphereBody = new CANNON.Body({
+  const cvtp1_geometry = new THREE.SphereGeometry( 0.01);
+  const cvtpm_material = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+  const controllerVelocityTrackingPoint1 = new THREE.Mesh(cvtp1_geometry, cvtpm_material);
+  controllerVelocityTrackingPoint1.position.set(0, 0.05, 0);
+  controllerVelocityTrackingPoint1.userData.previousWorldPosition = new THREE.Vector3(0, 0.05, 0);
+  controllerVelocityTrackingPoint1.userData.name = "velocityTrackingPoint";
+
+  const sphereBody = new CANNON.Body({
     mass: 5, // kg
     shape: new CANNON.Sphere(0.1),
   })
   const geo = new THREE.SphereGeometry(0.1)
   const mat= new THREE.MeshBasicMaterial({ color: 0xff0000 });
-  sphereMesh = new THREE.Mesh(geo, mat)
+  const sphereMesh = new THREE.Mesh(geo, mat)
   addPhysObject(sphereBody, sphereMesh, 'sphere', [0,1,1.2]);
 
 // controllers
 
   controller1 = renderer.xr.getController( 0 );
+  controller1.add( controllerVelocityTrackingPoint1 );
+  controller1.userData.throwVelocities = Array.from({length: 10}, (v, i) => new THREE.Vector3(0, 0, 0));
   controller1.addEventListener( 'selectstart', onSelectStart );
   controller1.addEventListener( 'selectend', onSelectEnd );
   scene.add( controller1 );
@@ -206,8 +218,10 @@ function onSelectStart( event ) {
   const controller = event.target;
 
   const intersections = getIntersections( controller );
+  controller.userData.carrying = true;
 
   if ( intersections.length > 0 ) {
+
 
     const intersection = intersections[ 0 ];
 
@@ -215,6 +229,7 @@ function onSelectStart( event ) {
     //object.material.emissive.b = 1;
     controller.attach( object );
 
+    //console.log( 'attach', object );
     const body = phys_obj_bodies[object.userData.name]
     body.velocity.set(0,0,0);
     body.angularVelocity.set(0,0,0)
@@ -229,16 +244,19 @@ function onSelectStart( event ) {
 function onSelectEnd( event ) {
 
   const controller = event.target;
+  controller.userData.carrying = false;
 
   if ( controller.userData.selected !== undefined ) {
 
     const object = controller.userData.selected;
     //object.material.emissive.b = 0;
-    phys_objs.attach( object );
 
     const body = phys_obj_bodies[object.userData.name]
-    body.position.copy(object.position);
-    body.quaternion.copy(object.quaternion);
+    body.position.copy(object.getWorldPosition(temp_vec3));
+    body.quaternion.copy(object.getWorldQuaternion(temp_quat));
+    body.velocity.copy(getControllerThrowVelocity(controller));
+
+    phys_objs.attach( object );
 
     controller.userData.selected = undefined;
 
@@ -319,16 +337,86 @@ function animate() {
 
 }
 
+function findControllerThrowVelocity(controller, dt) {
+  const velocityTrackingPoint = controller.children.find(child => child.userData.name === 'velocityTrackingPoint');
+  const worldPosition = velocityTrackingPoint.getWorldPosition(temp_vec3);
+  const previousWorldPosition = velocityTrackingPoint.userData.previousWorldPosition;
+  temp_displacement.copy(worldPosition).sub(previousWorldPosition);
+  //temp_displacement.length() > 0 ? console.log({worldPosition, previousWorldPosition, temp_displacement}) : null;
+  if (dt > 0) {
+    temp_velocity.copy(temp_displacement).divideScalar(dt);
+  }
+  velocityTrackingPoint.userData.previousWorldPosition.copy(worldPosition);
+
+  //temp_displacement.length() > 0 ? console.log({temp_displacement, dt, temp_velocity}) : null;
+
+  return temp_velocity;
+}
+
+function setControllerThrowVelocity(controller, velocity) {
+  const newVelocity = new THREE.Vector3();
+  newVelocity.copy(velocity);
+  controller.userData.throwVelocities.shift();
+  controller.userData.throwVelocities.push(newVelocity);
+  //console.log({pushing: velocity, velocities: controller.userData.throwVelocities});
+}
+
+function getControllerThrowVelocity(controller) {
+  const avgThrowVelocity = new THREE.Vector3();
+  const throwVelocities = controller.userData.throwVelocities;
+  //console.log(throwVelocities);
+  const length = throwVelocities.length;
+
+  let maxPosition = 0;
+  let maxValue = 0;
+  for(var i = 0; i < length; i++) {
+    const value = throwVelocities[i].length()
+    if (value > maxValue) {
+      maxPosition = i;
+      maxValue = value;
+    }
+  }
+
+  let div = 1;
+  avgThrowVelocity.copy(throwVelocities[maxPosition]);
+  if (maxPosition > 0) {
+    avgThrowVelocity.add(throwVelocities[maxPosition - 1]);
+    div += 1;
+  }
+  if (maxPosition < length -1) {
+    avgThrowVelocity.add(throwVelocities[maxPosition + 1])
+    div += 1;
+  }
+
+  avgThrowVelocity.divideScalar(div);
+
+  //console.log({maxPosition, avgThrowVelocity, throwVelocities});
+  
+  return avgThrowVelocity;
+}
+
 function render() {
 
   const time = performance.now() / 1000 // seconds
+  let dt = 0;
   if (!lastCallTime) {
     world.step(timeStep)
   } else {
-    const dt = time - lastCallTime
+    dt = time - lastCallTime
     world.step(timeStep, dt)
   }
   lastCallTime = time
+
+  if (controller1.userData.carrying){
+    //console.log("carrying");
+    const controller1ThrowVelocity = findControllerThrowVelocity(controller1, dt);
+    setControllerThrowVelocity(controller1, controller1ThrowVelocity);
+  } else {
+    //console.log("not carrying");
+  }
+
+
+  //controller1.userData.throwVelocity.length() > 2 ? console.log(controller1.userData.throwVelocity) : null;
 
   phys_objs.children.forEach(function(mesh) {
     if(controller1.userData.selected != mesh && controller2.userData.selected != mesh)
@@ -428,7 +516,7 @@ function userMove() {
                       if (Math.abs(value) > 0.2) {
                           //set the speedFactor per axis, with acceleration when holding above threshold, up to a max speed
                           speedFactor[i] > 1 ? (speedFactor[i] = 1) : (speedFactor[i] *= 1.001);
-                          console.log(value, speedFactor[i], i);
+                          //console.log(value, speedFactor[i], i);
                           if (i == 2) {
                               //left and right axis on thumbsticks
                               if (data.handedness == "right") {
