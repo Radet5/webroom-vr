@@ -11,6 +11,6 @@ roomManager.init();
 container.appendChild(renderer.domElement);
 document.body.appendChild( VRButton.createButton( renderer ) );
 
-window.addEventListener( 'resize', roomManager.onWindowResize );
+window.addEventListener( 'resize', () => roomManager.onWindowResize() );
 
 roomManager.animate();

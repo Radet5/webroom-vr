@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRUser } from '../user/vr-user';
+import { PhysicalObjectsManager } from '../objects-manager/physical-objects-manager';
 
 export class RoomManager {
   #camera;
@@ -10,7 +11,7 @@ export class RoomManager {
 
   #wasPresenting;
   #user
-  #phys_objs;
+  #physicalObjectsManager
 
   #lastCallTime;
   #timeStep;
@@ -40,16 +41,6 @@ export class RoomManager {
     return this.#renderer;
   }
 
-  #addPhysObject(body, mesh, name, position) {
-    this.#phys_objs.bodies[name] = body;
-    body.position.set(...position); // m
-    this.#world.addBody(body);
-    mesh.userData.name = name;
-    mesh.position.set(...position); // m
-    this.#scene.add(mesh);
-    this.#phys_objs.meshes.add(mesh);
-  }
-
   init() {
     const scene = this.#scene;
 
@@ -61,29 +52,13 @@ export class RoomManager {
     groundBody.position.set(0,-1.325,0);
     this.#world.addBody(groundBody)
 
-    this.#phys_objs = {meshes: new THREE.Group(), bodies: {}};
-    scene.add( this.#phys_objs.meshes );
+    this.#physicalObjectsManager = new PhysicalObjectsManager(this.#world, this.#scene);
+    const phys_objs = this.#physicalObjectsManager.getPhysObjects();
+    scene.add( phys_objs.meshes );
+    this.#physicalObjectsManager.addBox("box", [-1,0,1]);
+    this.#physicalObjectsManager.addSphere('sphere', [0,1,1.2]);
 
-    const boxgeometry = new THREE.BoxGeometry();
-    const boxMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-    const boxMesh = new THREE.Mesh(boxgeometry, boxMaterial);
-    boxMesh.scale.set(0.1, 0.1, 0.1);
-    const size = 0.05;
-    const halfExtents = new CANNON.Vec3(size, size, size)
-    const boxShape = new CANNON.Box(halfExtents)
-    const boxBody = new CANNON.Body({ mass: 1, shape: boxShape })
-    this.#addPhysObject(boxBody, boxMesh, "box", [-1,0,1]);
-
-    const sphereBody = new CANNON.Body({
-      mass: 5, // kg
-      shape: new CANNON.Sphere(0.1),
-    })
-    const geo = new THREE.SphereGeometry(0.1)
-    const mat= new THREE.MeshBasicMaterial({ color: 0xff0000 });
-    const sphereMesh = new THREE.Mesh(geo, mat)
-    this.#addPhysObject(sphereBody, sphereMesh, 'sphere', [0,1,1.2]);
-
-    this.#user = new VRUser({renderer: this.#renderer, camera: this.#camera, container: this.#container, phys_objs: this.#phys_objs});
+    this.#user = new VRUser({renderer: this.#renderer, camera: this.#camera, container: this.#container, phys_objs: phys_objs});
     scene.add(this.#user.getDolly());
 
     this.#wasPresenting = this.#renderer.xr.isPresenting;
@@ -107,9 +82,7 @@ export class RoomManager {
     this.#camera.aspect = window.innerWidth / window.innerHeight;
     this.#camera.updateProjectionMatrix();
     this.#renderer.setSize( window.innerWidth, window.innerHeight );
-
   }
-
 
   #update() {
     const time = performance.now() / 1000 // seconds
