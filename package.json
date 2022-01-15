@@ -1,7 +1,20 @@
 {
+  
+  "name": "webroom-vr",
+  "description": "simple peer-networked VR environment with basic physics",
+  "version": "0.2.0",
+  "author": "Radet 5 <radientradet5@gmail.com> (https://radet5.com)",
   "scripts": {
     "start": "parcel src/index.html",
     "lint": "eslint **/*.ts --quiet"
+  },
+  "homepage": "https://github.com/Radet5/webroom-vr",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Radet5/webroom-vr.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Radet5/webroom-vr/issues"
   },
   "dependencies": {
     "@types/three": "^0.133.1",
