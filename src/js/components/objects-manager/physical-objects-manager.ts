@@ -17,6 +17,26 @@ export class PhysicalObjectsManager {
     return this.#phys_objs.meshes;
   }
 
+  setObjectVelocity(name, velocity) {
+    this.#phys_objs.bodies[name].velocity.set(velocity.x, velocity.y, velocity.z);
+  }
+
+  setObjectAngularVelocity(name, angular_velocity) {
+    this.#phys_objs.bodies[name].angularVelocity.set(angular_velocity.x, angular_velocity.y, angular_velocity.z);
+  }
+
+  setObjectWorldPosition(name, position) {
+    this.#phys_objs.bodies[name].position.set(position.x, position.y, position.z);
+  }
+
+  setObjectWorldQuaternion(name, quaternion) {
+    this.#phys_objs.bodies[name].quaternion.set(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
+  }
+
+  reAttachObjectMesh(meshObject) {
+    this.#phys_objs.meshes.attach( meshObject );
+  }
+
   addBox(name, world_pos) {
     const boxgeometry = new THREE.BoxGeometry();
     const boxMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
