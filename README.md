@@ -1,4 +1,4 @@
-# webroom-vr-demo
+# webroom-vr
 
 WIP
 
