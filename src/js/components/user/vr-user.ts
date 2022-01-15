@@ -105,17 +105,22 @@ export class VRUser {
   }
 
   update(dt) {
-    if (this.#controller1.userData.carrying){
+    const controller1 = this.#controller1;
+    const controller2 = this.#controller2;
+
+    // update velocity tracking points
+    if (controller1.userData.carrying){
       //console.log("carrying");
-      const controller1ThrowVelocity = this.#findControllerThrowVelocity(this.#controller1, dt);
-      this.#setControllerThrowVelocity(this.#controller1, controller1ThrowVelocity);
-    } else {
-      //console.log("not carrying");
+      const controller1ThrowVelocity = this.#findControllerThrowVelocity(controller1, dt);
+      this.#setControllerThrowVelocity(controller1, controller1ThrowVelocity);
+    } else if (controller2.userData.carrying){
+      //console.log("carrying");
+      const controller2ThrowVelocity = this.#findControllerThrowVelocity(controller2, dt);
+      this.#setControllerThrowVelocity(controller2, controller2ThrowVelocity);
     }
     //controller1.userData.throwVelocity.length() > 2 ? console.log(controller1.userData.throwVelocity) : null;
 
-    const controller1 = this.#controller1;
-    const controller2 = this.#controller2;
+    //sync object mesh position with physics bodie when not held by a controller
     const phys_obj_bodies = this.#phys_objs.bodies;
     this.#phys_objs.meshes.children.forEach(function(mesh) {
       if(controller1.userData.selected != mesh && controller2.userData.selected != mesh)
@@ -126,9 +131,11 @@ export class VRUser {
       }
     });
 
+    //check for intersections with controller rays
     this.#cleanIntersected();
     this.#intersectObjects( this.#controller1 );
     this.#intersectObjects( this.#controller2 );
+
     //add gamepad polling for webxr to renderloop
     this.#userMove()
   }
