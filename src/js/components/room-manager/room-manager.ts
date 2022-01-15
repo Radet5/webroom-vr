@@ -53,12 +53,12 @@ export class RoomManager {
     this.#world.addBody(groundBody)
 
     this.#physicalObjectsManager = new PhysicalObjectsManager(this.#world);
-    const phys_objs = this.#physicalObjectsManager.getPhysObjects();
-    scene.add( phys_objs.meshes );
+    
+    scene.add( this.#physicalObjectsManager.getPhysObjectsMeshes() );
     this.#physicalObjectsManager.addBox("box", [-1,0,1]);
     this.#physicalObjectsManager.addSphere('sphere', [0,1,1.2]);
 
-    this.#user = new VRUser({renderer: this.#renderer, camera: this.#camera, container: this.#container, phys_objs: phys_objs});
+    this.#user = new VRUser({renderer: this.#renderer, camera: this.#camera, container: this.#container, physicalObjectManager: this.#physicalObjectsManager});
     scene.add(this.#user.getDolly());
 
     this.#wasPresenting = this.#renderer.xr.isPresenting;
@@ -90,7 +90,9 @@ export class RoomManager {
     dt = time - this.#lastCallTime
     this.#world.step(this.#timeStep, dt)
     this.#lastCallTime = time
+
     this.#user.update(dt);
+    this.#physicalObjectsManager.update();
 
     if (this.#renderer.xr.isPresenting && !this.#wasPresenting) {
       this.#user.setPosition(0,-1,3);

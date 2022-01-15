@@ -14,7 +14,7 @@ export class VRUser {
   #speedFactor;
   #intersected;
   #raycaster;
-  #phys_objs;
+  #physicalObjectManager;
   #oControls;
   #renderer;
   #temp_quat;
@@ -23,10 +23,10 @@ export class VRUser {
   #temp_displacement;
   #temp_velocity;
 
-  constructor({renderer, camera, container, phys_objs}) {
+  constructor({renderer, camera, container, physicalObjectManager}) {
     this.#renderer = renderer;
     this.#camera = camera;
-    this.#phys_objs = phys_objs;
+    this.#physicalObjectManager = physicalObjectManager;
     this.#cameraVector = new THREE.Vector3();
     this.#prevGamePads = new Map();
     this.#speedFactor = [0.1, 0.1, 0.1, 0.1];
@@ -120,17 +120,6 @@ export class VRUser {
     }
     //controller1.userData.throwVelocity.length() > 2 ? console.log(controller1.userData.throwVelocity) : null;
 
-    //sync object mesh position with physics bodie when not held by a controller
-    const phys_obj_bodies = this.#phys_objs.bodies;
-    this.#phys_objs.meshes.children.forEach(function(mesh) {
-      if(controller1.userData.selected != mesh && controller2.userData.selected != mesh)
-      {
-        const body = phys_obj_bodies[mesh.userData.name]
-        mesh.position.copy(body.position);
-        mesh.quaternion.copy(body.quaternion);
-      }
-    });
-
     //check for intersections with controller rays
     this.#cleanIntersected();
     this.#intersectObjects( this.#controller1 );
@@ -151,9 +140,8 @@ export class VRUser {
       //object.material.emissive.b = 1;
       controller.attach( object );
       //console.log( 'attach', object );
-      const body = this.#phys_objs.bodies[object.userData.name]
-      body.velocity.set(0,0,0);
-      body.angularVelocity.set(0,0,0)
+      this.#physicalObjectManager.setObjectVelocity(object.userData.name, {x: 0, y: 0, z: 0});
+      this.#physicalObjectManager.setObjectAngularVelocity(object.userData.name, {x: 0, y: 0, z: 0});
       controller.userData.selected = object;
     }
   }
@@ -165,11 +153,14 @@ export class VRUser {
     if ( controller.userData.selected !== undefined ) {
       const object = controller.userData.selected;
       //object.material.emissive.b = 0;
-      const body = this.#phys_objs.bodies[object.userData.name]
-      body.position.copy(object.getWorldPosition(this.#temp_vec3));
-      body.quaternion.copy(object.getWorldQuaternion(this.#temp_quat));
-      body.velocity.copy(this.#getControllerThrowVelocity(controller));
-      this.#phys_objs.meshes.attach( object );
+      object.getWorldPosition(this.#temp_vec3);
+      object.getWorldQuaternion(this.#temp_quat);
+      const throwVeloctiy = this.#getControllerThrowVelocity(controller);
+
+      this.#physicalObjectManager.setObjectWorldPosition(object.userData.name, {x: this.#temp_vec3.x, y: this.#temp_vec3.y, z: this.#temp_vec3.z});
+      this.#physicalObjectManager.setObjectWorldQuaternion(object.userData.name, {x: this.#temp_quat.x, y: this.#temp_quat.y, z: this.#temp_quat.z, w: this.#temp_quat.w});
+      this.#physicalObjectManager.setObjectVelocity(object.userData.name, {x: throwVeloctiy.x, y: throwVeloctiy.y, z: throwVeloctiy.z});
+      this.#physicalObjectManager.reAttachObjectMesh( object );
       controller.userData.selected = undefined;
     }
   }
@@ -178,7 +169,7 @@ export class VRUser {
     this.#tempMatrix.identity().extractRotation( controller.matrixWorld );
     this.#raycaster.ray.origin.setFromMatrixPosition( controller.matrixWorld );
     this.#raycaster.ray.direction.set( 0, 0, - 1 ).applyMatrix4( this.#tempMatrix );
-    return this.#raycaster.intersectObjects( this.#phys_objs.meshes.children, false );
+    return this.#raycaster.intersectObjects( this.#physicalObjectManager.getPhysObjectsMeshes().children, false );
   }
 
   #intersectObjects( controller ) {
