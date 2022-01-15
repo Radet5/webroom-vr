@@ -135,7 +135,7 @@ export class RoomManager {
 
     this.#controller1 = this.#renderer.xr.getController( 0 );
     this.#controller1.add( controllerVelocityTrackingPoint1 );
-    this.#controller1.userData.throwVelocities = Array.from({length: 10}, (v, i) => new THREE.Vector3(0, 0, 0));
+    this.#controller1.userData.throwVelocities = Array.from({length: 10}, () => new THREE.Vector3(0, 0, 0));
     this.#controller1.addEventListener( 'selectstart', (e) => this.#onSelectStart(e) );
     this.#controller1.addEventListener( 'selectend', (e) => this.#onSelectEnd(e) );
     scene.add( this.#controller1 );
@@ -302,7 +302,7 @@ export class RoomManager {
                   sourceXR.gamepad.hapticActuators[0] &&
                   sourceXR.handedness == controller.name              
               ) {
-                  var didPulse = sourceXR.gamepad.hapticActuators[0].pulse(0.8, 100);
+                  sourceXR.gamepad.hapticActuators[0].pulse(0.8, 100);
               }
           }
       }
@@ -323,12 +323,12 @@ export class RoomManager {
 
   #cleanIntersected() {
 
-    while ( this.#intersected.length ) {
+    //while ( this.#intersected.length ) {
 
-      const object = this.#intersected.pop();
-      //object.material.emissive.r = 0;
+    //  const object = this.#intersected.pop();
+    //  //object.material.emissive.r = 0;
 
-    }
+    //}
 
   }
 
@@ -364,7 +364,7 @@ export class RoomManager {
 
     let maxPosition = 0;
     let maxValue = 0;
-    for(var i = 0; i < length; i++) {
+    for(let i = 0; i < length; i++) {
       const value = throwVelocities[i].length()
       if (value > maxValue) {
         maxPosition = i;
@@ -442,14 +442,13 @@ export class RoomManager {
   }
 
   #userMove() {
-    var handedness = "unknown";
+    let handedness = "unknown";
 
     //determine if we are in an xr session
     const session = this.#renderer.xr.getSession();
-    let i = 0;
 
     if (session) {
-        let xrCamera = this.#renderer.xr.getCamera(this.#camera);
+        const xrCamera = this.#renderer.xr.getCamera(this.#camera);
         xrCamera.getWorldDirection(this.#cameraVector);
 
         //a check to prevent console errors if only one input source
@@ -459,7 +458,6 @@ export class RoomManager {
                     handedness = source.handedness; //left or right controllers
                 }
                 if (!source.gamepad) continue;
-                const controller = this.#renderer.xr.getController(i++);
                 const old = this.#prevGamePads.get(source);
                 const data = {
                     handedness: handedness,
