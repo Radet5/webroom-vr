@@ -13,6 +13,10 @@ export class PhysicalObjectsManager {
     return this.#phys_objs;
   }
 
+  getPhysObjectsMeshes() {
+    return this.#phys_objs.meshes;
+  }
+
   addBox(name, world_pos) {
     const boxgeometry = new THREE.BoxGeometry();
     const boxMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
@@ -34,6 +38,16 @@ export class PhysicalObjectsManager {
     const mat= new THREE.MeshBasicMaterial({ color: 0xff0000 });
     const sphereMesh = new THREE.Mesh(geo, mat)
     this.#addPhysObject(sphereBody, sphereMesh, name, world_pos);
+  }
+
+  update () {
+    //sync object mesh position with physics bodies
+    const phys_obj_bodies = this.#phys_objs.bodies;
+    this.#phys_objs.meshes.children.forEach(function(mesh) {
+      const body = phys_obj_bodies[mesh.userData.name]
+      mesh.position.copy(body.position);
+      mesh.quaternion.copy(body.quaternion);
+    });
   }
 
   #addPhysObject(body, mesh, name, position) {
