@@ -52,7 +52,7 @@ export class RoomManager {
     groundBody.position.set(0,-1.325,0);
     this.#world.addBody(groundBody)
 
-    this.#physicalObjectsManager = new PhysicalObjectsManager(this.#world, this.#scene);
+    this.#physicalObjectsManager = new PhysicalObjectsManager(this.#world);
     const phys_objs = this.#physicalObjectsManager.getPhysObjects();
     scene.add( phys_objs.meshes );
     this.#physicalObjectsManager.addBox("box", [-1,0,1]);

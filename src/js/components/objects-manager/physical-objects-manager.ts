@@ -3,11 +3,9 @@ import * as CANNON from 'cannon-es';
 
 export class PhysicalObjectsManager {
   #phys_objs;
-  #scene;
   #world;
-  constructor (world, scene) {
+  constructor (world) {
     this.#world = world;
-    this.#scene = scene;
     this.#phys_objs = {meshes: new THREE.Group(), bodies: {}};
   }
 
@@ -44,7 +42,6 @@ export class PhysicalObjectsManager {
     this.#world.addBody(body);
     mesh.userData.name = name;
     mesh.position.set(...position); // m
-    this.#scene.add(mesh);
     this.#phys_objs.meshes.add(mesh);
   }
 
