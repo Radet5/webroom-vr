@@ -1,14 +1,15 @@
 {
   "compilerOptions": {
-    "target": "ES2021", 
-    "module": "es2020",
+    "target": "es6", 
+    "module": "commonjs",
     "lib": [
       "dom",
       "es5",
       "es6"
     ],
     "strict": true,
-    "noImplicitAny": false,
+    "alwaysStrict": true,
+    "noImplicitAny": true,
     "strictPropertyInitialization": false,
     "moduleResolution": "node",
     "typeRoots": [
