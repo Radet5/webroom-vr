@@ -1,6 +1,14 @@
 import * as THREE from 'three';
 import { XRControllerModelFactory } from 'three/examples/jsm/webxr/XRControllerModelFactory.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import type { PhysicalObjectsManager } from '../objects-manager/physical-objects-manager';
+
+interface XRUserParams {
+  renderer: THREE.WebGLRenderer;
+  camera: THREE.PerspectiveCamera;
+  container: HTMLElement;
+  physicalObjectsManager: PhysicalObjectsManager;
+}
 
 export class VRUser {
   #controller1;
@@ -12,21 +20,21 @@ export class VRUser {
   #cameraVector;
   #prevGamePads;
   #speedFactor;
-  #intersected;
+  #intersected: Array<THREE.Object3D>;
   #raycaster;
-  #physicalObjectManager;
+  #physicalObjectsManager;
   #oControls;
   #renderer;
   #temp_quat;
-  #tempMatrix;
+  #temp_matrix;
   #temp_vec3;
   #temp_displacement;
   #temp_velocity;
 
-  constructor({renderer, camera, container, physicalObjectManager}) {
+  constructor({renderer, camera, container, physicalObjectsManager}: XRUserParams) {
     this.#renderer = renderer;
     this.#camera = camera;
-    this.#physicalObjectManager = physicalObjectManager;
+    this.#physicalObjectsManager = physicalObjectsManager;
     this.#cameraVector = new THREE.Vector3();
     this.#prevGamePads = new Map();
     this.#speedFactor = [0.1, 0.1, 0.1, 0.1];
@@ -34,7 +42,7 @@ export class VRUser {
 
     //reusable temp variables so we don't have to create new ones every frame
     this.#temp_quat = new THREE.Quaternion();
-    this.#tempMatrix = new THREE.Matrix4();
+    this.#temp_matrix = new THREE.Matrix4();
     this.#temp_vec3 = new THREE.Vector3()
     this.#temp_displacement = new THREE.Vector3();
     this.#temp_velocity = new THREE.Vector3();
@@ -61,7 +69,7 @@ export class VRUser {
     this.#dolly.add(this.#controllerGrip2);
   }
 
-  setPosition(x, y, z) {
+  setPosition(x: number, y: number, z: number) {
     this.#dolly.position.set(x, y, z);
   }
 
@@ -69,7 +77,7 @@ export class VRUser {
     return this.#dolly;
   }
 
-  update(dt) {
+  update(dt: number) {
     const controller1 = this.#controller1;
     const controller2 = this.#controller2;
 
@@ -94,10 +102,10 @@ export class VRUser {
     this.#userMove()
   }
 
-  #initController = (controllerIndex) => {
-    const cvtp_geometry = new THREE.SphereGeometry( 0.01);
-    const cvtpm_material = new THREE.MeshBasicMaterial({ color: 0x0000ff });
-    const controllerVelocityTrackingPoint = new THREE.Mesh(cvtp_geometry, cvtpm_material);
+  #initController = (controllerIndex: number) => {
+    const cvtpGeometry = new THREE.SphereGeometry( 0.01);
+    const cvtpMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+    const controllerVelocityTrackingPoint = new THREE.Mesh(cvtpGeometry, cvtpMaterial);
     controllerVelocityTrackingPoint.position.set(0, 0.05, 0);
     controllerVelocityTrackingPoint.userData.previousWorldPosition = new THREE.Vector3(0, 0.05, 0);
     controllerVelocityTrackingPoint.userData.name = "velocityTrackingPoint";
@@ -117,14 +125,14 @@ export class VRUser {
     return controller;
   }
 
-  #initControllerGrip = (controllerIndex) => {
+  #initControllerGrip = (controllerIndex: number) => {
     const controllerModelFactory = new XRControllerModelFactory();
     const controllerGrip = this.#renderer.xr.getControllerGrip( controllerIndex );
     controllerGrip.add( controllerModelFactory.createControllerModel( controllerGrip ) );
     return controllerGrip;
   }
 
-  #onSelectStart( event ) {
+  #onSelectStart( event: THREE.Event ) {
     const controller = event.target;
     const intersections = this.#getIntersections( controller );
     controller.userData.carrying = true;
@@ -135,13 +143,13 @@ export class VRUser {
       //object.material.emissive.b = 1;
       controller.attach( object );
       //console.log( 'attach', object );
-      this.#physicalObjectManager.setObjectVelocity(object.userData.name, {x: 0, y: 0, z: 0});
-      this.#physicalObjectManager.setObjectAngularVelocity(object.userData.name, {x: 0, y: 0, z: 0});
+      this.#physicalObjectsManager.setObjectVelocity(object.userData.name, {x: 0, y: 0, z: 0});
+      this.#physicalObjectsManager.setObjectAngularVelocity(object.userData.name, {x: 0, y: 0, z: 0});
       controller.userData.selected = object;
     }
   }
 
-  #onSelectEnd( event ) {
+  #onSelectEnd( event: THREE.Event ) {
     const controller = event.target;
     controller.userData.carrying = false;
 
@@ -152,45 +160,51 @@ export class VRUser {
       object.getWorldQuaternion(this.#temp_quat);
       const throwVeloctiy = this.#getControllerThrowVelocity(controller);
 
-      this.#physicalObjectManager.setObjectWorldPosition(object.userData.name, {x: this.#temp_vec3.x, y: this.#temp_vec3.y, z: this.#temp_vec3.z});
-      this.#physicalObjectManager.setObjectWorldQuaternion(object.userData.name, {x: this.#temp_quat.x, y: this.#temp_quat.y, z: this.#temp_quat.z, w: this.#temp_quat.w});
-      this.#physicalObjectManager.setObjectVelocity(object.userData.name, {x: throwVeloctiy.x, y: throwVeloctiy.y, z: throwVeloctiy.z});
-      this.#physicalObjectManager.reAttachObjectMesh( object );
+      this.#physicalObjectsManager.setObjectWorldPosition(object.userData.name, {x: this.#temp_vec3.x, y: this.#temp_vec3.y, z: this.#temp_vec3.z});
+      this.#physicalObjectsManager.setObjectWorldQuaternion(object.userData.name, {x: this.#temp_quat.x, y: this.#temp_quat.y, z: this.#temp_quat.z, w: this.#temp_quat.w});
+      this.#physicalObjectsManager.setObjectVelocity(object.userData.name, {x: throwVeloctiy.x, y: throwVeloctiy.y, z: throwVeloctiy.z});
+      this.#physicalObjectsManager.reAttachObjectMesh( object );
       controller.userData.selected = undefined;
     }
   }
 
-  #getIntersections( controller ) {
-    this.#tempMatrix.identity().extractRotation( controller.matrixWorld );
+  #getIntersections( controller: THREE.Group) {
+    this.#temp_matrix.identity().extractRotation( controller.matrixWorld );
     this.#raycaster.ray.origin.setFromMatrixPosition( controller.matrixWorld );
-    this.#raycaster.ray.direction.set( 0, 0, - 1 ).applyMatrix4( this.#tempMatrix );
-    return this.#raycaster.intersectObjects( this.#physicalObjectManager.getPhysObjectsMeshes().children, false );
+    this.#raycaster.ray.direction.set( 0, 0, - 1 ).applyMatrix4( this.#temp_matrix );
+    return this.#raycaster.intersectObjects( this.#physicalObjectsManager.getPhysObjectsMeshes().children, false );
   }
 
-  #intersectObjects( controller ) {
+  #intersectObjects( controller: THREE.Group ) {
     // Do not highlight when already selected
     if ( controller.userData.selected !== undefined ) return;
 
     const line = controller.getObjectByName( 'line' );
+    if ( line === undefined ) {
+      console.error( 'Controller is missing ray.' );
+      return;
+    }
+
     const intersections = this.#getIntersections( controller );
 
     if ( intersections.length > 0 ) {
       const intersection = intersections[ 0 ];
-      const session = this.#renderer.xr.getSession();
-      if (session) {  //only if we are in a webXR session
-          for (const sourceXR of session.inputSources) {
-              if (!sourceXR.gamepad) continue;
-              if (
-                  sourceXR &&
-                  sourceXR.gamepad &&
-                  sourceXR.gamepad.hapticActuators &&
-                  sourceXR.gamepad.hapticActuators[0] &&
-                  sourceXR.handedness == controller.name              
-              ) {
-                  sourceXR.gamepad.hapticActuators[0].pulse(0.8, 100);
-              }
-          }
-      }
+      // This should make the controllers vibrate but it doesn't
+      //const session = this.#renderer.xr.getSession();
+      //if (session) {  //only if we are in a webXR session
+      //    for (const sourceXR of session.inputSources) {
+      //        if (!sourceXR.gamepad) continue;
+      //        if (
+      //            sourceXR &&
+      //            sourceXR.gamepad &&
+      //            sourceXR.gamepad.hapticActuators &&
+      //            sourceXR.gamepad.hapticActuators[0] &&
+      //            sourceXR.handedness == controller.name              
+      //        ) {
+      //            sourceXR.gamepad.hapticActuators[0].pulse(0.8, 100);
+      //        }
+      //    }
+      //}
 
       const object = intersection.object;
       //object.material.emissive.r = 1;
@@ -208,8 +222,14 @@ export class VRUser {
     //}
   }
 
-  #findControllerThrowVelocity(controller, dt) {
+  #findControllerThrowVelocity(controller: THREE.Group, dt: number) {
     const velocityTrackingPoint = controller.children.find(child => child.userData.name === 'velocityTrackingPoint');
+    if (velocityTrackingPoint === undefined) {
+      console.error('Controller is missing velocity tracking point.');
+      this.#temp_velocity.set(0, 0, 0);
+      return this.#temp_velocity;
+    }
+
     const worldPosition = velocityTrackingPoint.getWorldPosition(this.#temp_vec3);
     const previousWorldPosition = velocityTrackingPoint.userData.previousWorldPosition;
     this.#temp_displacement.copy(worldPosition).sub(previousWorldPosition);
@@ -222,7 +242,7 @@ export class VRUser {
     return this.#temp_velocity;
   }
 
-  #setControllerThrowVelocity(controller, velocity) {
+  #setControllerThrowVelocity(controller: THREE.Group, velocity: THREE.Vector3) {
     const newVelocity = new THREE.Vector3();
     newVelocity.copy(velocity);
     controller.userData.throwVelocities.shift();
@@ -230,7 +250,7 @@ export class VRUser {
     //console.log({pushing: velocity, velocities: controller.userData.throwVelocities});
   }
 
-  #getControllerThrowVelocity(controller) {
+  #getControllerThrowVelocity(controller: THREE.Group) {
     const avgThrowVelocity = new THREE.Vector3();
     const throwVelocities = controller.userData.throwVelocities;
     //console.log(throwVelocities);
@@ -374,7 +394,7 @@ export class VRUser {
     }
   }
 
-  #isIterable(obj) {  //function to check if object is iterable
+  #isIterable(obj: any) {  //function to check if object is iterable
     // checks for null and undefined
     if (obj == null) {
         return false;
