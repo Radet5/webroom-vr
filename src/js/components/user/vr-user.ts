@@ -32,7 +32,7 @@ export class VRUser {
     this.#speedFactor = [0.1, 0.1, 0.1, 0.1];
     this.#intersected = [];
 
-    //reusable temp variables
+    //reusable temp variables so we don't have to create new ones every frame
     this.#temp_quat = new THREE.Quaternion();
     this.#tempMatrix = new THREE.Matrix4();
     this.#temp_vec3 = new THREE.Vector3()
@@ -40,51 +40,16 @@ export class VRUser {
     this.#temp_velocity = new THREE.Vector3();
 
   // controllers, their velocity tracking, raycasters, and meshes
-    const cvtp_geometry = new THREE.SphereGeometry( 0.01);
-    const cvtpm_material = new THREE.MeshBasicMaterial({ color: 0x0000ff });
-    const controllerVelocityTrackingPoint1 = new THREE.Mesh(cvtp_geometry, cvtpm_material);
-    controllerVelocityTrackingPoint1.position.set(0, 0.05, 0);
-    controllerVelocityTrackingPoint1.userData.previousWorldPosition = new THREE.Vector3(0, 0.05, 0);
-    controllerVelocityTrackingPoint1.userData.name = "velocityTrackingPoint";
+    this.#controller1 = this.#initController(0);
+    this.#controller2 = this.#initController(1);
+    this.#controllerGrip1 = this.#initControllerGrip(0);
+    this.#controllerGrip2 = this.#initControllerGrip(1);
 
-    this.#controller1 = this.#renderer.xr.getController( 0 );
-    this.#controller1.add( controllerVelocityTrackingPoint1 );
-    this.#controller1.userData.throwVelocities = Array.from({length: 10}, () => new THREE.Vector3(0, 0, 0));
-    this.#controller1.addEventListener( 'selectstart', (e) => this.#onSelectStart(e) );
-    this.#controller1.addEventListener( 'selectend', (e) => this.#onSelectEnd(e) );
-
-    const controllerVelocityTrackingPoint2 = new THREE.Mesh(cvtp_geometry, cvtpm_material);
-    controllerVelocityTrackingPoint2.position.set(0, 0.05, 0);
-    controllerVelocityTrackingPoint2.userData.previousWorldPosition = new THREE.Vector3(0, 0.05, 0);
-    controllerVelocityTrackingPoint2.userData.name = "velocityTrackingPoint";
-
-    this.#controller2 = this.#renderer.xr.getController( 1 );
-    this.#controller2.add( controllerVelocityTrackingPoint2 );
-    this.#controller2.userData.throwVelocities = Array.from({length: 10}, () => new THREE.Vector3(0, 0, 0));
-    this.#controller2.addEventListener( 'selectstart', (e) => this.#onSelectStart(e) );
-    this.#controller2.addEventListener( 'selectend', (e) => this.#onSelectEnd(e) );
-
-    const controllerModelFactory = new XRControllerModelFactory();
-
-    this.#controllerGrip1 = this.#renderer.xr.getControllerGrip( 0 );
-    this.#controllerGrip1.add( controllerModelFactory.createControllerModel( this.#controllerGrip1 ) );
-
-    this.#controllerGrip2 = this.#renderer.xr.getControllerGrip( 1 );
-    this.#controllerGrip2.add( controllerModelFactory.createControllerModel( this.#controllerGrip2 ) );
+    this.#raycaster = new THREE.Raycaster();
 
     this.#oControls = new OrbitControls( this.#camera, container );
     this.#oControls.target.set( 0, 1.6, 0 );
     this.#oControls.update();
-
-    const geometry = new THREE.BufferGeometry().setFromPoints( [ new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, 0, - 1 ) ] );
-    const line = new THREE.Line( geometry );
-    line.name = 'line';
-    line.scale.z = 5;
-
-    this.#controller1.add( line.clone() );
-    this.#controller2.add( line.clone() );
-
-    this.#raycaster = new THREE.Raycaster();
 
     this.#dolly = new THREE.Group();
     this.#dolly.position.set(0,0,3);
@@ -127,6 +92,36 @@ export class VRUser {
 
     //add gamepad polling for webxr to renderloop
     this.#userMove()
+  }
+
+  #initController = (controllerIndex) => {
+    const cvtp_geometry = new THREE.SphereGeometry( 0.01);
+    const cvtpm_material = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+    const controllerVelocityTrackingPoint = new THREE.Mesh(cvtp_geometry, cvtpm_material);
+    controllerVelocityTrackingPoint.position.set(0, 0.05, 0);
+    controllerVelocityTrackingPoint.userData.previousWorldPosition = new THREE.Vector3(0, 0.05, 0);
+    controllerVelocityTrackingPoint.userData.name = "velocityTrackingPoint";
+
+    const controller = this.#renderer.xr.getController(controllerIndex);
+    controller.add( controllerVelocityTrackingPoint );
+    controller.userData.throwVelocities = Array.from({length: 10}, () => new THREE.Vector3(0, 0, 0));
+    controller.addEventListener( 'selectstart', (e) => this.#onSelectStart(e) );
+    controller.addEventListener( 'selectend', (e) => this.#onSelectEnd(e) );
+
+    const geometry = new THREE.BufferGeometry().setFromPoints( [ new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, 0, - 1 ) ] );
+    const line = new THREE.Line( geometry );
+    line.name = 'line';
+    line.scale.z = 5;
+    controller.add( line.clone() );
+
+    return controller;
+  }
+
+  #initControllerGrip = (controllerIndex) => {
+    const controllerModelFactory = new XRControllerModelFactory();
+    const controllerGrip = this.#renderer.xr.getControllerGrip( controllerIndex );
+    controllerGrip.add( controllerModelFactory.createControllerModel( controllerGrip ) );
+    return controllerGrip;
   }
 
   #onSelectStart( event ) {
