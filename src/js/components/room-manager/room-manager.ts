@@ -1,8 +1,8 @@
-import * as THREE from 'three';
-import * as CANNON from 'cannon-es';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { VRUser } from '../user/vr-user';
-import { PhysicalObjectsManager } from '../objects-manager/physical-objects-manager';
+import * as THREE from "three";
+import * as CANNON from "cannon-es";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { VRUser } from "../user/vr-user";
+import { PhysicalObjectsManager } from "../objects-manager/physical-objects-manager";
 
 export class RoomManager {
   #camera;
@@ -18,23 +18,30 @@ export class RoomManager {
   #world;
 
   #container;
-  constructor(container: HTMLElement, windowInnerWidth: number, windowInnerHeight: number) {
+  constructor(
+    container: HTMLElement,
+    windowInnerWidth: number,
+    windowInnerHeight: number
+  ) {
     this.#container = container;
     this.#lastCallTime = 0;
-    this.#timeStep = 1/60;
-    this.#world = new CANNON.World(
-      {gravity: new CANNON.Vec3(0, -9.82, 0)}
-    );
+    this.#timeStep = 1 / 60;
+    this.#world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.82, 0) });
 
     this.#scene = new THREE.Scene();
-    this.#camera = new THREE.PerspectiveCamera(75, windowInnerWidth / windowInnerHeight, 0.1, 10);
+    this.#camera = new THREE.PerspectiveCamera(
+      75,
+      windowInnerWidth / windowInnerHeight,
+      0.1,
+      10
+    );
 
-    this.#renderer = new THREE.WebGLRenderer( { antialias: true } );
+    this.#renderer = new THREE.WebGLRenderer({ antialias: true });
     this.#renderer.setSize(window.innerWidth, window.innerHeight);
     this.#renderer.outputEncoding = THREE.sRGBEncoding;
     this.#renderer.shadowMap.enabled = true;
     this.#renderer.xr.enabled = true;
-    this.#renderer.setPixelRatio( window.devicePixelRatio );
+    this.#renderer.setPixelRatio(window.devicePixelRatio);
   }
 
   getRenderer() {
@@ -47,65 +54,75 @@ export class RoomManager {
     const groundBody = new CANNON.Body({
       type: CANNON.Body.STATIC,
       shape: new CANNON.Plane(),
-    })
-    groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0) // make it face up
-    groundBody.position.set(0,-1.325,0);
-    this.#world.addBody(groundBody)
+    });
+    groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); // make it face up
+    groundBody.position.set(0, -1.325, 0);
+    this.#world.addBody(groundBody);
 
     this.#physicalObjectsManager = new PhysicalObjectsManager(this.#world);
-    
-    scene.add( this.#physicalObjectsManager.getPhysObjectsMeshes() );
-    this.#physicalObjectsManager.addBox("box", {x: -1, y: 0, z:1 });
-    this.#physicalObjectsManager.addSphere('sphere', {x:0, y:1, z: 1.2});
 
-    this.#user = new VRUser({renderer: this.#renderer, camera: this.#camera, container: this.#container, physicalObjectsManager: this.#physicalObjectsManager});
+    scene.add(this.#physicalObjectsManager.getPhysObjectsMeshes());
+    this.#physicalObjectsManager.addBox("box", { x: -1, y: 0, z: 1 });
+    this.#physicalObjectsManager.addSphere("sphere", { x: 0, y: 1, z: 1.2 });
+
+    this.#user = new VRUser({
+      renderer: this.#renderer,
+      camera: this.#camera,
+      container: this.#container,
+      physicalObjectsManager: this.#physicalObjectsManager,
+    });
     scene.add(this.#user.getDolly());
 
     this.#wasPresenting = this.#renderer.xr.isPresenting;
     const loader = new GLTFLoader();
 
-    loader.load( 'cliffRoom_03.gltf', function ( gltf ) {
-      const model = gltf.scene
-      model.scale.set(0.01, 0.01, 0.01);
-      model.rotateY(30);
-    	scene.add( model );
-    }, undefined, function ( error ) {
-    	console.error( error );
-    } );
+    loader.load(
+      "cliffRoom_03.gltf",
+      function (gltf) {
+        const model = gltf.scene;
+        model.scale.set(0.01, 0.01, 0.01);
+        model.rotateY(30);
+        scene.add(model);
+      },
+      undefined,
+      function (error) {
+        console.error(error);
+      }
+    );
 
-    const light = new THREE.PointLight( 0xffffff, 1, 100 );
-    light.position.set( 1, 1, 1 );
-    scene.add( light );
+    const light = new THREE.PointLight(0xffffff, 1, 100);
+    light.position.set(1, 1, 1);
+    scene.add(light);
   }
 
   onWindowResize() {
     this.#camera.aspect = window.innerWidth / window.innerHeight;
     this.#camera.updateProjectionMatrix();
-    this.#renderer.setSize( window.innerWidth, window.innerHeight );
+    this.#renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
   #update() {
-    const time = performance.now() / 1000 // seconds
+    const time = performance.now() / 1000; // seconds
     let dt = 0;
-    dt = time - this.#lastCallTime
-    this.#world.step(this.#timeStep, dt)
-    this.#lastCallTime = time
+    dt = time - this.#lastCallTime;
+    this.#world.step(this.#timeStep, dt);
+    this.#lastCallTime = time;
 
     this.#user.update(dt);
     this.#physicalObjectsManager.update();
 
     if (this.#renderer.xr.isPresenting && !this.#wasPresenting) {
-      this.#user.setPosition(0,-1,3);
+      this.#user.setPosition(0, -1, 3);
       this.#wasPresenting = true;
     }
 
-    this.#renderer.render( this.#scene, this.#camera );
+    this.#renderer.render(this.#scene, this.#camera);
   }
 
   animate() {
     this.#lastCallTime = performance.now() / 1000;
-    this.#renderer.setAnimationLoop( () => {
+    this.#renderer.setAnimationLoop(() => {
       this.#update();
-    } );
+    });
   }
 }

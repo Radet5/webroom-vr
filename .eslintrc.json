@@ -7,20 +7,25 @@
 	},
 	"extends": [
       "eslint:recommended",
-      "plugin:@typescript-eslint/recommended"
+      "plugin:@typescript-eslint/recommended",
+			"prettier"
 	],
 	"parserOptions": {
 	    "ecmaVersion": 12,
 	    "sourceType": "module"
 	},
 	"rules": {
-	    "no-mixed-spaces-and-tabs": "off"
+	    "no-mixed-spaces-and-tabs": "off",
+			"arrow-body-style":"off",
+    	"noExplicitAny": "off",
+			"prettier/prettier": "warn"
 	},
 	"ignorePatterns": [
 	    "docs", "parcel-build", "dist"
 	],
   "parser": "@typescript-eslint/parser",
 	"plugins": [
-	    "@typescript-eslint"
+	    "@typescript-eslint",
+			"prettier"
 	]
 }
