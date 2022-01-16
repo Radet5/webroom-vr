@@ -1,5 +1,4 @@
 {
-  
   "name": "webroom-vr",
   "description": "simple peer-networked VR environment with basic physics",
   "version": "0.2.0",
@@ -26,7 +25,7 @@
     "@typescript-eslint/parser": "^5.9.1",
     "eslint": "^8.6.0",
     "node": "^17.3.1",
-    "parcel": "^2.0.0",
+    "parcel": "^2.2.0",
     "typescript": "^4.5.4"
   }
 }
