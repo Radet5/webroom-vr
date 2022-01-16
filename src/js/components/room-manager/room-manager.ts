@@ -9,16 +9,16 @@ export class RoomManager {
   #scene;
   #renderer;
 
-  #wasPresenting;
-  #user
-  #physicalObjectsManager
+  #wasPresenting: boolean;
+  #user: VRUser;
+  #physicalObjectsManager: PhysicalObjectsManager;
 
   #lastCallTime;
   #timeStep;
   #world;
 
   #container;
-  constructor(container, windowInnerWidth, windowInnerHeight) {
+  constructor(container: HTMLElement, windowInnerWidth: number, windowInnerHeight: number) {
     this.#container = container;
     this.#lastCallTime = 0;
     this.#timeStep = 1/60;
@@ -55,10 +55,10 @@ export class RoomManager {
     this.#physicalObjectsManager = new PhysicalObjectsManager(this.#world);
     
     scene.add( this.#physicalObjectsManager.getPhysObjectsMeshes() );
-    this.#physicalObjectsManager.addBox("box", [-1,0,1]);
-    this.#physicalObjectsManager.addSphere('sphere', [0,1,1.2]);
+    this.#physicalObjectsManager.addBox("box", {x: -1, y: 0, z:1 });
+    this.#physicalObjectsManager.addSphere('sphere', {x:0, y:1, z: 1.2});
 
-    this.#user = new VRUser({renderer: this.#renderer, camera: this.#camera, container: this.#container, physicalObjectManager: this.#physicalObjectsManager});
+    this.#user = new VRUser({renderer: this.#renderer, camera: this.#camera, container: this.#container, physicalObjectsManager: this.#physicalObjectsManager});
     scene.add(this.#user.getDolly());
 
     this.#wasPresenting = this.#renderer.xr.isPresenting;
