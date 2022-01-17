@@ -20,7 +20,6 @@ export class RoomManager {
   #timeStep;
   #world;
 
-
   #container;
   constructor(
     container: HTMLElement,
@@ -117,6 +116,10 @@ export class RoomManager {
 
     this.#user.update(dt);
     this.#physicalObjectsManager.update();
+
+    if (this.#user.isMoving()) {
+      this.#serverDataManager.sendToAll({userPosition: this.#user.getPosition()});
+    }
 
     if (this.#renderer.xr.isPresenting && !this.#wasPresenting) {
       this.#user.setPosition(0, -1, 3);

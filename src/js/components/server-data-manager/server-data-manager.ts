@@ -13,6 +13,18 @@ export class ServerDataManager {
     this.#peers = [];
   }
 
+  getPeerCount() {
+    return this.#peers.length;
+  }
+
+  sendToAll(data: any) {
+    this.#peers.forEach((peer: any) => {
+      if (peer.connected) {
+        peer.peer.send(JSON.stringify({ userID: this.#socket.id, data }));
+      }
+    });
+  }
+
   start() {
     axios
       .get(this.#serverURL + "/initialize")
@@ -24,19 +36,19 @@ export class ServerDataManager {
         console.log(error);
       });
 
-    this.#socket = io("http://localhost:8000");
+    this.#socket = io("http://192.168.1.65:8000");
     this.#socket.emit("join room");
     this.#socket.on("all users", (users: any) => {
-      console.log(users);
+      //console.log(users);
       users.forEach((peerID: any) => {
         const peer = this.#createPeer(peerID, this.#socket.id);
-        this.#peers.push({ peerID, peer });
+        this.#peers.push({ peerID, peer, connected: false });
       });
     });
 
     this.#socket.on("user joined", (payload: any) => {
       const peer = this.#addPeer(payload.signal, payload.callerID);
-      this.#peers.push({ peerID: payload.callerID, peer });
+      this.#peers.push({ peerID: payload.callerID, peer, connected: false });
     });
 
     this.#socket.on("receiving returned signal", (payload: any) => {
@@ -47,6 +59,7 @@ export class ServerDataManager {
     this.#socket.on("user left", (id: any) => {
       const item = this.#peers.find((item: any) => item.peerID === id);
       if (item) {
+        console.log("DISCONNECTED", id);
         item.peer.destroy();
       }
       this.#peers = this.#peers.filter((item: any) => item.peerID !== id);
@@ -63,7 +76,17 @@ export class ServerDataManager {
       this.#socket.emit("sending signal", { userToSignal, callerID, signal });
     });
 
+    peer.on("connect", () => {
+      console.log("CONNECTED", userToSignal);
+      this.#peers.forEach((peer: any) => {
+        if (peer.peerID === userToSignal) {
+          peer.connected = true;
+        }
+      });
+    });
+
     //peer.on("data", (data:any) => console.log(data));
+    peer.on("data", (data:any) => console.log(Buffer.from(data).toString()));
 
     return peer;
   }
@@ -78,8 +101,17 @@ export class ServerDataManager {
       this.#socket.emit("returning signal", { signal, callerID });
     });
 
+    peer.on("connect", () => {
+      console.log("CONNECTED", callerID);
+      this.#peers.forEach((peer: any) => {
+        if (peer.peerID === callerID) {
+          peer.connected = true;
+        }
+      });
+    });
+
     //peer.on("data", handleReceivingData);
-    //peer.on("data", (data:any) => console.log(Buffer.from(data).toString()));
+    peer.on("data", (data:any) => console.log(Buffer.from(data).toString()));
 
     peer.signal(incomingSignal);
     return peer;
@@ -91,7 +123,7 @@ export class ServerDataManager {
         .post(this.#serverURL + "/poll", { id })
         .then((response) => {
           //console.log(JSON.stringify(response.data.connections));
-          console.log(this.#peers.map((peer: any) => peer.peerID));
+          //console.log(this.#peers.map((peer: any) => peer.peerID));
           this.#poll(id);
         })
         .catch((error) => {
