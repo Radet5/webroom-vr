@@ -26,17 +26,17 @@ export class ServerDataManager {
   }
 
   start() {
-    axios
-      .get(this.#serverURL + "/initialize")
-      .then((response) => {
-        console.log(response.data);
-        this.#poll(response.data.id);
-      })
-      .catch((error) => {
-        console.log(error);
-      });
+    //axios
+    //  .get(this.#serverURL + "/initialize")
+    //  .then((response) => {
+    //    console.log(response.data);
+    //    this.#poll(response.data.id);
+    //  })
+    //  .catch((error) => {
+    //    console.log(error);
+    //  });
 
-    this.#socket = io("http://192.168.1.65:8000");
+    this.#socket = io("https://api.radet5.com:8000", {secure: true, rejectUnauthorized: false});
     this.#socket.emit("join room");
     this.#socket.on("all users", (users: any) => {
       //console.log(users);
