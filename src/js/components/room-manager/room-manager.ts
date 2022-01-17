@@ -3,6 +3,7 @@ import * as CANNON from "cannon-es";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { VRUser } from "../user/vr-user";
 import { PhysicalObjectsManager } from "../objects-manager/physical-objects-manager";
+import { ServerDataManager } from "../server-data-manager/server-data-manager";
 
 export class RoomManager {
   #camera;
@@ -13,9 +14,12 @@ export class RoomManager {
   #user: VRUser;
   #physicalObjectsManager: PhysicalObjectsManager;
 
+  #serverDataManager: ServerDataManager;
+
   #lastCallTime;
   #timeStep;
   #world;
+
 
   #container;
   constructor(
@@ -23,6 +27,9 @@ export class RoomManager {
     windowInnerWidth: number,
     windowInnerHeight: number
   ) {
+    this.#serverDataManager = new ServerDataManager();
+    this.#serverDataManager.start();
+
     this.#container = container;
     this.#lastCallTime = 0;
     this.#timeStep = 1 / 60;
