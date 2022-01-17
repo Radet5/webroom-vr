@@ -44,8 +44,12 @@ export class ServerDataManager {
       item.peer.signal(payload.signal);
     });
 
-    this.#socket.on("room full", () => {
-      alert("room is full");
+    this.#socket.on("user left", (id: any) => {
+      const item = this.#peers.find((item: any) => item.peerID === id);
+      if (item) {
+        item.peer.destroy();
+      }
+      this.#peers = this.#peers.filter((item: any) => item.peerID !== id);
     });
   }
 
