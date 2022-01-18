@@ -144,6 +144,7 @@ export class RoomManager {
         container: this.#container,
         physicalObjectsManager: this.#physicalObjectsManager,
       });
+      this.#scene.add(this.#user.getDolly());
       this.#user.setPosition(0, -1, 3);
       this.#wasPresenting = true;
     } else if (!this.#renderer.xr.isPresenting && this.#wasPresenting) {
