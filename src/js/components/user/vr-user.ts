@@ -21,6 +21,8 @@ export class VRUser {
   #prevGamePads;
   #speedFactor;
   #intersected: Array<THREE.Object3D>;
+  #moving;
+  #previousPosition: THREE.Vector3;
   #raycaster;
   #physicalObjectsManager;
   #oControls;
@@ -44,6 +46,7 @@ export class VRUser {
     this.#prevGamePads = new Map();
     this.#speedFactor = [0.1, 0.1, 0.1, 0.1];
     this.#intersected = [];
+    this.#moving = false;
 
     //reusable temp variables so we don't have to create new ones every frame
     this.#temp_quat = new THREE.Quaternion();
@@ -61,8 +64,10 @@ export class VRUser {
     this.#raycaster = new THREE.Raycaster();
 
     this.#oControls = new OrbitControls(this.#camera, container);
-    this.#oControls.target.set(0, 1.6, 0);
+    this.#oControls.target.set(0, 1, -2);
     this.#oControls.update();
+
+    this.#previousPosition = new THREE.Vector3();
 
     this.#dolly = new THREE.Group();
     this.#dolly.position.set(0, 0, 3);
@@ -76,10 +81,19 @@ export class VRUser {
 
   setPosition(x: number, y: number, z: number) {
     this.#dolly.position.set(x, y, z);
+    this.#oControls.update();
+  }
+
+  getPosition() {
+    return this.#dolly.position;
   }
 
   getDolly() {
     return this.#dolly;
+  }
+
+  isMoving() {
+    return this.#moving;
   }
 
   update(dt: number) {
@@ -111,6 +125,12 @@ export class VRUser {
 
     //add gamepad polling for webxr to renderloop
     this.#userMove();
+    if (this.#previousPosition.distanceTo(this.#dolly.position) > 0.01) {
+      this.#moving = true;
+    } else {
+      this.#moving = false;
+    }
+    this.#previousPosition.copy(this.#dolly.position);
   }
 
   #initController = (controllerIndex: number) => {

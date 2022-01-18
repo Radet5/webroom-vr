@@ -2,7 +2,48 @@ import * as THREE from "three";
 import * as CANNON from "cannon-es";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { VRUser } from "../user/vr-user";
+import { ScreenUser } from "../user/screen-user";
 import { PhysicalObjectsManager } from "../objects-manager/physical-objects-manager";
+import { ServerDataManager } from "../server-data-manager/server-data-manager";
+
+class OtherPlayer {
+  #userID;
+  #dolly;
+  constructor(userID: string) {
+    this.#userID = userID;
+    this.#dolly = new THREE.Group();
+
+    let hex, i;
+    let result = "";
+    for (i = 0; i < userID.length; i++) {
+      hex = userID.charCodeAt(i).toString(16);
+      result += hex.slice(-4);
+    }
+    const color = "#" + result.substring(0, 6);
+
+    const boxgeometry = new THREE.BoxGeometry();
+    const boxMaterial = new THREE.MeshBasicMaterial({ color });
+    const boxMesh = new THREE.Mesh(boxgeometry, boxMaterial);
+    boxMesh.position.set(0, 0.5, 0);
+    boxMesh.scale.set(0.5, 1, 0.2);
+    this.#dolly.add(boxMesh);
+  }
+
+  addToScene(scene: THREE.Scene) {
+    scene.add(this.#dolly);
+  }
+
+  removeFromScene(scene: THREE.Scene) {
+    this.#dolly.children.forEach(child => {
+      scene.remove(child);
+    });
+    scene.remove(this.#dolly);
+  }
+
+  setPosition(position: {x: number, y: number, z: number}) {
+    this.#dolly.position.set(position.x, position.y, position.z);
+  }
+}
 
 export class RoomManager {
   #camera;
@@ -10,12 +51,16 @@ export class RoomManager {
   #renderer;
 
   #wasPresenting: boolean;
-  #user: VRUser;
+  #user: VRUser | ScreenUser;
   #physicalObjectsManager: PhysicalObjectsManager;
+
+  #serverDataManager: ServerDataManager;
 
   #lastCallTime;
   #timeStep;
   #world;
+
+  #players: { [userID: string]: OtherPlayer } = {};
 
   #container;
   constructor(
@@ -23,11 +68,6 @@ export class RoomManager {
     windowInnerWidth: number,
     windowInnerHeight: number
   ) {
-    this.#container = container;
-    this.#lastCallTime = 0;
-    this.#timeStep = 1 / 60;
-    this.#world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.82, 0) });
-
     this.#scene = new THREE.Scene();
     this.#camera = new THREE.PerspectiveCamera(
       75,
@@ -35,6 +75,31 @@ export class RoomManager {
       0.1,
       10
     );
+
+    this.#serverDataManager = new ServerDataManager();
+
+    this.#serverDataManager.registerNewUserCallback((userID) => {
+      this.#players[userID] = new OtherPlayer(userID);
+      this.#players[userID].addToScene(this.#scene);
+    });
+    this.#serverDataManager.registerRemoveUserCallback((userID) => {
+      this.#players[userID].removeFromScene(this.#scene);
+      delete this.#players[userID];
+    });
+
+    this.#serverDataManager.registerUpdatePlayerPositionCallback(
+      (userID, position) => {
+        this.#players[userID].setPosition(position);
+      }
+    );
+
+    this.#serverDataManager.start();
+
+    this.#container = container;
+    this.#lastCallTime = 0;
+    this.#timeStep = 1 / 60;
+    this.#world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.82, 0) });
+    this.#wasPresenting = false;
 
     this.#renderer = new THREE.WebGLRenderer({ antialias: true });
     this.#renderer.setSize(window.innerWidth, window.innerHeight);
@@ -65,15 +130,14 @@ export class RoomManager {
     this.#physicalObjectsManager.addBox("box", { x: -1, y: 0, z: 1 });
     this.#physicalObjectsManager.addSphere("sphere", { x: 0, y: 1, z: 1.2 });
 
-    this.#user = new VRUser({
+    this.#user = new ScreenUser({
       renderer: this.#renderer,
       camera: this.#camera,
       container: this.#container,
-      physicalObjectsManager: this.#physicalObjectsManager,
     });
     scene.add(this.#user.getDolly());
 
-    this.#wasPresenting = this.#renderer.xr.isPresenting;
+    //this.#wasPresenting = this.#renderer.xr.isPresenting;
     const loader = new GLTFLoader();
 
     loader.load(
@@ -112,8 +176,29 @@ export class RoomManager {
     this.#physicalObjectsManager.update();
 
     if (this.#renderer.xr.isPresenting && !this.#wasPresenting) {
+      this.#user = new VRUser({
+        renderer: this.#renderer,
+        camera: this.#camera,
+        container: this.#container,
+        physicalObjectsManager: this.#physicalObjectsManager,
+      });
       this.#user.setPosition(0, -1, 3);
       this.#wasPresenting = true;
+    } else if (!this.#renderer.xr.isPresenting && this.#wasPresenting) {
+      this.#user = new ScreenUser({
+        renderer: this.#renderer,
+        camera: this.#camera,
+        container: this.#container,
+      });
+      this.#scene.add(this.#user.getDolly());
+      this.#user.setPosition(0, 1, 3);
+      this.#wasPresenting = false;
+    }
+
+    if (this.#user.isMoving()) {
+      this.#serverDataManager.sendToAll({
+        userPosition: this.#user.getPosition(),
+      });
     }
 
     this.#renderer.render(this.#scene, this.#camera);
