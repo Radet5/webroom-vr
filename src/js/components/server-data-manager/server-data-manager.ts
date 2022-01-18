@@ -1,15 +1,16 @@
-import axios from "axios";
 import { io } from "socket.io-client";
 import Peer from "simple-peer";
 import { Buffer } from "buffer";
 
 export class ServerDataManager {
   #serverURL;
-  #pollingTimeout: ReturnType<typeof setTimeout>;
   #socket: any;
   #peers: any;
+  #newUserCallback: (userID: string) => void;
+  #removeUserCallback: (userID: string) => void;
+  #updatePlayerPositionCallback: (userID: string, position: any) => void;
   constructor() {
-    this.#serverURL = "http://localhost:3000/api";
+    this.#serverURL = "https://api.radet5.com:8000";
     this.#peers = [];
   }
 
@@ -25,18 +26,20 @@ export class ServerDataManager {
     });
   }
 
-  start() {
-    //axios
-    //  .get(this.#serverURL + "/initialize")
-    //  .then((response) => {
-    //    console.log(response.data);
-    //    this.#poll(response.data.id);
-    //  })
-    //  .catch((error) => {
-    //    console.log(error);
-    //  });
+  registerNewUserCallback(callback: (userID: string) => void) {
+    this.#newUserCallback = callback;
+  }
 
-    this.#socket = io("https://api.radet5.com:8000", {secure: true, rejectUnauthorized: false});
+  registerRemoveUserCallback(callback: (userID: string) => void) {
+    this.#removeUserCallback = callback;
+  }
+
+  registerUpdatePlayerPositionCallback(callback: (userID: string, position: any) => void) {
+    this.#updatePlayerPositionCallback = callback;
+  }
+
+  start() {
+    this.#socket = io(this.#serverURL, {secure: true, rejectUnauthorized: false});
     this.#socket.emit("join room");
     this.#socket.on("all users", (users: any) => {
       //console.log(users);
@@ -61,9 +64,37 @@ export class ServerDataManager {
       if (item) {
         console.log("DISCONNECTED", id);
         item.peer.destroy();
+        if (typeof this.#removeUserCallback === "function") {
+          this.#removeUserCallback(id);
+        }
       }
       this.#peers = this.#peers.filter((item: any) => item.peerID !== id);
     });
+  }
+
+  #parseData(data: any) {
+    const parsedData = JSON.parse(Buffer.from(data).toString());
+    //console.log(parsedData);
+    console.log(parsedData.userID, "position", parsedData.data.userPosition);
+    Object.keys(parsedData.data).forEach((key: string) => {
+      if (key === "userPosition") {
+        if (typeof this.#updatePlayerPositionCallback === "function") {
+          this.#updatePlayerPositionCallback(parsedData.userID, parsedData.data[key]);
+        }
+      }
+    });
+  }
+
+  #onConnect(userID: string) {
+    console.log("CONNECTED", userID);
+    this.#peers.forEach((peer: any) => {
+      if (peer.peerID === userID) {
+        peer.connected = true;
+      }
+    });
+    if (typeof this.#newUserCallback === "function") {
+      this.#newUserCallback(userID);
+    }
   }
 
   #createPeer(userToSignal: any, callerID: any) {
@@ -76,17 +107,10 @@ export class ServerDataManager {
       this.#socket.emit("sending signal", { userToSignal, callerID, signal });
     });
 
-    peer.on("connect", () => {
-      console.log("CONNECTED", userToSignal);
-      this.#peers.forEach((peer: any) => {
-        if (peer.peerID === userToSignal) {
-          peer.connected = true;
-        }
-      });
-    });
+    peer.on("connect", () => this.#onConnect(userToSignal));
 
     //peer.on("data", (data:any) => console.log(data));
-    peer.on("data", (data:any) => console.log(Buffer.from(data).toString()));
+    peer.on("data", (data:any) => this.#parseData(data));
 
     return peer;
   }
@@ -101,37 +125,12 @@ export class ServerDataManager {
       this.#socket.emit("returning signal", { signal, callerID });
     });
 
-    peer.on("connect", () => {
-      console.log("CONNECTED", callerID);
-      this.#peers.forEach((peer: any) => {
-        if (peer.peerID === callerID) {
-          peer.connected = true;
-        }
-      });
-    });
+    peer.on("connect", () => this.#onConnect(callerID));
 
     //peer.on("data", handleReceivingData);
-    peer.on("data", (data:any) => console.log(Buffer.from(data).toString()));
+    peer.on("data", (data:any) => this.#parseData(data));
 
     peer.signal(incomingSignal);
     return peer;
-  }
-
-  #poll(id: number) {
-    this.#pollingTimeout = setTimeout(() => {
-      axios
-        .post(this.#serverURL + "/poll", { id })
-        .then((response) => {
-          //console.log(JSON.stringify(response.data.connections));
-          //console.log(this.#peers.map((peer: any) => peer.peerID));
-          this.#poll(id);
-        })
-        .catch((error) => {
-          console.log(error);
-          if (error.response.status === 408) {
-            this.start();
-          }
-        });
-    }, 5000);
   }
 }

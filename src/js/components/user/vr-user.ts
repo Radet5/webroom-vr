@@ -64,7 +64,7 @@ export class VRUser {
     this.#raycaster = new THREE.Raycaster();
 
     this.#oControls = new OrbitControls(this.#camera, container);
-    this.#oControls.target.set(0, 1.6, 0);
+    this.#oControls.target.set(0, 1, -2);
     this.#oControls.update();
 
     this.#previousPosition = new THREE.Vector3();
@@ -81,6 +81,7 @@ export class VRUser {
 
   setPosition(x: number, y: number, z: number) {
     this.#dolly.position.set(x, y, z);
+    this.#oControls.update();
   }
 
   getPosition() {
