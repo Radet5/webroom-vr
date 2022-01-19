@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import * as CANNON from "cannon-es";
+import { Object3D } from "three";
 
 interface PhysicsObjectsInterface {
   meshes: THREE.Group;
@@ -12,13 +13,6 @@ interface Coordinates {
   x: number;
   y: number;
   z: number;
-}
-
-interface Rotation4D {
-  x: number;
-  y: number;
-  z: number;
-  w: number;
 }
 
 export class PhysicalObjectsManager {
@@ -37,6 +31,12 @@ export class PhysicalObjectsManager {
     return this.#physicsObjects.meshes;
   }
 
+  getPhysObjectByName(name: string) {
+    return this.#physicsObjects.meshes.children.find(
+      (mesh) => mesh.userData.name === name
+    );
+  }
+
   setObjectVelocity(name: string, velocity: Coordinates) {
     this.#physicsObjects.bodies[name].velocity.set(
       velocity.x,
@@ -53,7 +53,7 @@ export class PhysicalObjectsManager {
     );
   }
 
-  setObjectWorldPosition(name: string, position: Coordinates) {
+  setObjectWorldPosition(name: string, position: THREE.Vector3) {
     this.#physicsObjects.bodies[name].position.set(
       position.x,
       position.y,
@@ -61,7 +61,7 @@ export class PhysicalObjectsManager {
     );
   }
 
-  setObjectWorldQuaternion(name: string, quaternion: Rotation4D) {
+  setObjectWorldQuaternion(name: string, quaternion: THREE.Quaternion) {
     this.#physicsObjects.bodies[name].quaternion.set(
       quaternion.x,
       quaternion.y,
@@ -70,7 +70,8 @@ export class PhysicalObjectsManager {
     );
   }
 
-  reAttachObjectMesh(meshObject: THREE.Mesh) {
+  reAttachObjectMesh(meshObject: Object3D) {
+    console.log(meshObject);
     this.#physicsObjects.meshes.attach(meshObject);
   }
 

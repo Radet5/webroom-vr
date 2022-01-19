@@ -1,16 +1,41 @@
-import { io } from "socket.io-client";
+import { io, Socket } from "socket.io-client";
 import Peer from "simple-peer";
 import { Buffer } from "buffer";
+import "dotenv/config";
+import type { PlayerData } from "../agent/other-player";
+import type { GrabObjectInterface } from "../user/vr-user";
+import type { releaseObjectInterface } from "../user/vr-user";
+import SimplePeer from "simple-peer";
+
+const ENV = process.env.NODE_ENV || "development";
+
+interface PeerData {
+  peerID: string;
+  peer: SimplePeer.Instance;
+  connected: boolean;
+}
 
 export class ServerDataManager {
   #serverURL;
-  #socket: any;
-  #peers: any;
+  #socket: Socket;
+  #peers: Array<PeerData>;
   #newUserCallback: (userID: string) => void;
   #removeUserCallback: (userID: string) => void;
-  #updatePlayerPositionCallback: (userID: string, position: any) => void;
+  #updatePlayerCallback: (userId: string, playerData: PlayerData) => void;
+  #grabObjectCallback: (
+    userID: string,
+    grabObjectData: GrabObjectInterface
+  ) => void;
+  #releaseObjectCallback: (
+    userId: string,
+    releaseObjectData: releaseObjectInterface
+  ) => void;
   constructor() {
-    this.#serverURL = "https://api.radet5.com:8000";
+    if (ENV === "production") {
+      this.#serverURL = "https://api.radet5.com:8000";
+    } else {
+      this.#serverURL = "http://localhost:8000";
+    }
     this.#peers = [];
   }
 
@@ -19,7 +44,7 @@ export class ServerDataManager {
   }
 
   sendToAll(data: any) {
-    this.#peers.forEach((peer: any) => {
+    this.#peers.forEach((peer: PeerData) => {
       if (peer.connected) {
         peer.peer.send(JSON.stringify({ userID: this.#socket.id, data }));
       }
@@ -34,60 +59,106 @@ export class ServerDataManager {
     this.#removeUserCallback = callback;
   }
 
-  registerUpdatePlayerPositionCallback(callback: (userID: string, position: any) => void) {
-    this.#updatePlayerPositionCallback = callback;
+  registerUpdatePlayerCallback(
+    callback: (userID: string, playerData: PlayerData) => void
+  ) {
+    this.#updatePlayerCallback = callback;
+  }
+
+  registerGrabObjectCallback(
+    callback: (userID: string, grabObjectData: GrabObjectInterface) => void
+  ) {
+    this.#grabObjectCallback = callback;
+  }
+
+  registerReleaseObjectCallback(
+    callback: (
+      userID: string,
+      releaseObjectData: releaseObjectInterface
+    ) => void
+  ) {
+    this.#releaseObjectCallback = callback;
   }
 
   start() {
-    this.#socket = io(this.#serverURL, {secure: true, rejectUnauthorized: false});
+    this.#socket = io(this.#serverURL, {
+      secure: true,
+      rejectUnauthorized: false,
+    });
     this.#socket.emit("join room");
-    this.#socket.on("all users", (users: any) => {
+    this.#socket.on("all users", (users: Array<string>) => {
       //console.log(users);
-      users.forEach((peerID: any) => {
+      users.forEach((peerID: string) => {
         const peer = this.#createPeer(peerID, this.#socket.id);
         this.#peers.push({ peerID, peer, connected: false });
       });
     });
 
-    this.#socket.on("user joined", (payload: any) => {
-      const peer = this.#addPeer(payload.signal, payload.callerID);
-      this.#peers.push({ peerID: payload.callerID, peer, connected: false });
-    });
+    this.#socket.on(
+      "user joined",
+      (payload: { signal: SimplePeer.SignalData; callerID: string }) => {
+        const peer = this.#addPeer(payload.signal, payload.callerID);
+        this.#peers.push({ peerID: payload.callerID, peer, connected: false });
+      }
+    );
 
-    this.#socket.on("receiving returned signal", (payload: any) => {
-      const item = this.#peers.find((item: any) => item.peerID === payload.id);
-      item.peer.signal(payload.signal);
-    });
+    this.#socket.on(
+      "receiving returned signal",
+      (payload: { signal: SimplePeer.SignalData; id: string }) => {
+        const peerData = this.#peers.find(
+          (peer: PeerData) => peer.peerID === payload.id
+        );
+        if (peerData) {
+          peerData.peer.signal(payload.signal);
+        }
+      }
+    );
 
-    this.#socket.on("user left", (id: any) => {
-      const item = this.#peers.find((item: any) => item.peerID === id);
-      if (item) {
+    this.#socket.on("user left", (id: string) => {
+      const peerData = this.#peers.find((peer: PeerData) => peer.peerID === id);
+      if (peerData) {
         console.log("DISCONNECTED", id);
-        item.peer.destroy();
+        peerData.peer.destroy();
         if (typeof this.#removeUserCallback === "function") {
           this.#removeUserCallback(id);
         }
       }
-      this.#peers = this.#peers.filter((item: any) => item.peerID !== id);
+      this.#peers = this.#peers.filter((item: PeerData) => item.peerID !== id);
     });
   }
 
   #parseData(data: any) {
     const parsedData = JSON.parse(Buffer.from(data).toString());
     //console.log(parsedData);
-    console.log(parsedData.userID, "position", parsedData.data.userPosition);
     Object.keys(parsedData.data).forEach((key: string) => {
-      if (key === "userPosition") {
-        if (typeof this.#updatePlayerPositionCallback === "function") {
-          this.#updatePlayerPositionCallback(parsedData.userID, parsedData.data[key]);
+      if (key === "playerData") {
+        if (typeof this.#updatePlayerCallback === "function") {
+          this.#updatePlayerCallback(parsedData.userID, parsedData.data[key]);
         }
+      } else if (key === "grabObject") {
+        //console.log(
+        //  parsedData.userID,
+        //  "grabObject",
+        //  parsedData.data.grabObject
+        //);
+        this.#grabObjectCallback(parsedData.userID, parsedData.data.grabObject);
+      } else if (key === "releaseObject") {
+        //console.log(
+        //  parsedData.userID,
+        //  "releaseObject",
+        //  parsedData.data.releaseObject
+        //);
+        this.#releaseObjectCallback(
+          parsedData.userID,
+          parsedData.data.releaseObject
+        );
       }
     });
   }
 
   #onConnect(userID: string) {
     console.log("CONNECTED", userID);
-    this.#peers.forEach((peer: any) => {
+    this.#peers.forEach((peer: PeerData) => {
       if (peer.peerID === userID) {
         peer.connected = true;
       }
@@ -97,13 +168,13 @@ export class ServerDataManager {
     }
   }
 
-  #createPeer(userToSignal: any, callerID: any) {
+  #createPeer(userToSignal: string, callerID: string) {
     const peer = new Peer({
       initiator: true,
       trickle: false,
     });
 
-    peer.on("signal", signal => {
+    peer.on("signal", (signal) => {
       this.#socket.emit("sending signal", { userToSignal, callerID, signal });
     });
 
@@ -115,20 +186,20 @@ export class ServerDataManager {
     return peer;
   }
 
-  #addPeer(incomingSignal: any, callerID: any) {
+  #addPeer(incomingSignal: SimplePeer.SignalData, callerID: string) {
     const peer = new Peer({
       initiator: false,
       trickle: false,
     });
 
-    peer.on("signal", signal => {
+    peer.on("signal", (signal) => {
       this.#socket.emit("returning signal", { signal, callerID });
     });
 
     peer.on("connect", () => this.#onConnect(callerID));
 
     //peer.on("data", handleReceivingData);
-    peer.on("data", (data:any) => this.#parseData(data));
+    peer.on("data", (data: any) => this.#parseData(data));
 
     peer.signal(incomingSignal);
     return peer;

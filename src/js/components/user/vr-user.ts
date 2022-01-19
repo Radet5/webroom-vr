@@ -1,6 +1,6 @@
 import * as THREE from "three";
+import { User } from "./user";
 import { XRControllerModelFactory } from "three/examples/jsm/webxr/XRControllerModelFactory.js";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import type { PhysicalObjectsManager } from "../objects-manager/physical-objects-manager";
 
 interface XRUserParams {
@@ -10,26 +10,47 @@ interface XRUserParams {
   physicalObjectsManager: PhysicalObjectsManager;
 }
 
-export class VRUser {
+export interface GrabObjectInterface {
+  objectName: string;
+  controllerIndex: number;
+  objectPosition: THREE.Vector3;
+}
+
+export interface releaseObjectInterface {
+  objectName: string;
+  objectPosition: THREE.Vector3;
+  objectQuaternion: any;
+  objectVelocity: THREE.Vector3;
+  controllerIndex: number;
+}
+
+export class VRUser extends User {
   #controller1;
   #controller2;
   #controllerGrip1;
   #controllerGrip2;
-  #dolly;
-  #camera;
-  #cameraVector;
+  _cameraVector;
   #prevGamePads;
   #speedFactor;
   #intersected: Array<THREE.Object3D>;
-  #moving;
   #previousPosition: THREE.Vector3;
   #raycaster;
   #physicalObjectsManager;
-  #oControls;
-  #renderer;
+  #head;
+  #grabObjectCallback: ({
+    objectName,
+    controllerIndex,
+  }: GrabObjectInterface) => void;
+  #releaseObjectCallback: ({
+    objectName,
+    objectPosition,
+    objectQuaternion,
+    objectVelocity,
+  }: releaseObjectInterface) => void;
   #temp_quat;
   #temp_matrix;
   #temp_vec3;
+  #temp_vec3_2;
   #temp_displacement;
   #temp_velocity;
 
@@ -39,19 +60,18 @@ export class VRUser {
     container,
     physicalObjectsManager,
   }: XRUserParams) {
-    this.#renderer = renderer;
-    this.#camera = camera;
+    super({ renderer, camera, container });
     this.#physicalObjectsManager = physicalObjectsManager;
-    this.#cameraVector = new THREE.Vector3();
+    this._cameraVector = new THREE.Vector3();
     this.#prevGamePads = new Map();
     this.#speedFactor = [0.1, 0.1, 0.1, 0.1];
     this.#intersected = [];
-    this.#moving = false;
 
     //reusable temp variables so we don't have to create new ones every frame
     this.#temp_quat = new THREE.Quaternion();
     this.#temp_matrix = new THREE.Matrix4();
     this.#temp_vec3 = new THREE.Vector3();
+    this.#temp_vec3_2 = new THREE.Vector3();
     this.#temp_displacement = new THREE.Vector3();
     this.#temp_velocity = new THREE.Vector3();
 
@@ -61,39 +81,64 @@ export class VRUser {
     this.#controllerGrip1 = this.#initControllerGrip(0);
     this.#controllerGrip2 = this.#initControllerGrip(1);
 
-    this.#raycaster = new THREE.Raycaster();
+    const headGeo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+    const headMat = new THREE.MeshPhongMaterial({ color: 0xffffff });
+    this.#head = new THREE.Mesh(headGeo, headMat);
+    this.#head.position.set(0, 1, 0);
+    this.#head.visible = false;
 
-    this.#oControls = new OrbitControls(this.#camera, container);
-    this.#oControls.target.set(0, 1, -2);
-    this.#oControls.update();
+    //this.#releaseObjectCallback;
+
+    this.#raycaster = new THREE.Raycaster();
 
     this.#previousPosition = new THREE.Vector3();
 
-    this.#dolly = new THREE.Group();
-    this.#dolly.position.set(0, 0, 3);
-    this.#dolly.name = "user";
-    this.#dolly.add(this.#camera);
-    this.#dolly.add(this.#controller1);
-    this.#dolly.add(this.#controller2);
-    this.#dolly.add(this.#controllerGrip1);
-    this.#dolly.add(this.#controllerGrip2);
+    this._dolly.add(this.#controller1);
+    this._dolly.add(this.#controller2);
+    this._dolly.add(this.#controllerGrip1);
+    this._dolly.add(this.#controllerGrip2);
+    this._dolly.add(this.#head);
   }
 
   setPosition(x: number, y: number, z: number) {
-    this.#dolly.position.set(x, y, z);
-    this.#oControls.update();
+    this._dolly.position.set(x, y, z);
   }
 
-  getPosition() {
-    return this.#dolly.position;
+  getControllerData() {
+    return [
+      {
+        position: this.#controller1.position,
+        quaternion: this.#controller1.quaternion,
+      },
+      {
+        position: this.#controller2.position,
+        quaternion: this.#controller2.quaternion,
+      },
+    ];
   }
 
-  getDolly() {
-    return this.#dolly;
+  getHeadData() {
+    this.#temp_quat.setFromRotationMatrix(this._dolly.matrixWorld);
+    return {
+      position: this.#head.position,
+      quaternion: this.#temp_quat,
+    };
   }
 
-  isMoving() {
-    return this.#moving;
+  getType(): string {
+    return "vr-user";
+  }
+
+  registerGrabObjectCallback(
+    callback: ({ objectName, controllerIndex }: GrabObjectInterface) => void
+  ) {
+    this.#grabObjectCallback = callback;
+  }
+
+  registerReleaseObjectCallback(
+    callback: (releaseObjectData: releaseObjectInterface) => void
+  ) {
+    this.#releaseObjectCallback = callback;
   }
 
   update(dt: number) {
@@ -125,12 +170,12 @@ export class VRUser {
 
     //add gamepad polling for webxr to renderloop
     this.#userMove();
-    if (this.#previousPosition.distanceTo(this.#dolly.position) > 0.01) {
-      this.#moving = true;
+    if (this.#previousPosition.distanceTo(this._dolly.position) > 0.01) {
+      this._moving = true;
     } else {
-      this.#moving = false;
+      this._moving = false;
     }
-    this.#previousPosition.copy(this.#dolly.position);
+    this.#previousPosition.copy(this._dolly.position);
   }
 
   #initController = (controllerIndex: number) => {
@@ -145,7 +190,7 @@ export class VRUser {
       new THREE.Vector3(0, 0.05, 0);
     controllerVelocityTrackingPoint.userData.name = "velocityTrackingPoint";
 
-    const controller = this.#renderer.xr.getController(controllerIndex);
+    const controller = this._renderer.xr.getController(controllerIndex);
     controller.add(controllerVelocityTrackingPoint);
     controller.userData.throwVelocities = Array.from(
       { length: 10 },
@@ -153,6 +198,8 @@ export class VRUser {
     );
     controller.addEventListener("selectstart", (e) => this.#onSelectStart(e));
     controller.addEventListener("selectend", (e) => this.#onSelectEnd(e));
+
+    controller.userData.index = controllerIndex;
 
     const geometry = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0, 0, 0),
@@ -168,7 +215,7 @@ export class VRUser {
 
   #initControllerGrip = (controllerIndex: number) => {
     const controllerModelFactory = new XRControllerModelFactory();
-    const controllerGrip = this.#renderer.xr.getControllerGrip(controllerIndex);
+    const controllerGrip = this._renderer.xr.getControllerGrip(controllerIndex);
     controllerGrip.add(
       controllerModelFactory.createControllerModel(controllerGrip)
     );
@@ -179,12 +226,19 @@ export class VRUser {
     const controller = event.target;
     const intersections = this.#getIntersections(controller);
     controller.userData.carrying = true;
+    console.log(controller);
 
     if (intersections.length > 0) {
       const intersection = intersections[0];
       const object = intersection.object;
-      //object.material.emissive.b = 1;
       controller.attach(object);
+      if (typeof this.#grabObjectCallback === "function") {
+        this.#grabObjectCallback({
+          objectName: object.userData.name,
+          controllerIndex: controller.userData.index,
+          objectPosition: object.getWorldPosition(this.#temp_vec3),
+        });
+      }
       //console.log( 'attach', object );
       this.#physicalObjectsManager.setObjectVelocity(object.userData.name, {
         x: 0,
@@ -212,16 +266,11 @@ export class VRUser {
 
       this.#physicalObjectsManager.setObjectWorldPosition(
         object.userData.name,
-        { x: this.#temp_vec3.x, y: this.#temp_vec3.y, z: this.#temp_vec3.z }
+        this.#temp_vec3
       );
       this.#physicalObjectsManager.setObjectWorldQuaternion(
         object.userData.name,
-        {
-          x: this.#temp_quat.x,
-          y: this.#temp_quat.y,
-          z: this.#temp_quat.z,
-          w: this.#temp_quat.w,
-        }
+        this.#temp_quat
       );
       this.#physicalObjectsManager.setObjectVelocity(object.userData.name, {
         x: throwVeloctiy.x,
@@ -229,6 +278,15 @@ export class VRUser {
         z: throwVeloctiy.z,
       });
       this.#physicalObjectsManager.reAttachObjectMesh(object);
+      if (typeof this.#releaseObjectCallback === "function") {
+        this.#releaseObjectCallback({
+          objectName: object.userData.name,
+          objectPosition: this.#temp_vec3,
+          objectQuaternion: this.#temp_quat,
+          objectVelocity: throwVeloctiy,
+          controllerIndex: controller.userData.index,
+        });
+      }
       controller.userData.selected = undefined;
     }
   }
@@ -258,7 +316,7 @@ export class VRUser {
     if (intersections.length > 0) {
       const intersection = intersections[0];
       // This should make the controllers vibrate but it doesn't
-      //const session = this.#renderer.xr.getSession();
+      //const session = this._renderer.xr.getSession();
       //if (session) {  //only if we are in a webXR session
       //    for (const sourceXR of session.inputSources) {
       //        if (!sourceXR.gamepad) continue;
@@ -327,7 +385,7 @@ export class VRUser {
   }
 
   #getControllerThrowVelocity(controller: THREE.Group) {
-    const avgThrowVelocity = new THREE.Vector3();
+    const avgThrowVelocity = this.#temp_vec3_2;
     const throwVelocities = controller.userData.throwVelocities;
     //console.log(throwVelocities);
     const length = throwVelocities.length;
@@ -361,11 +419,11 @@ export class VRUser {
     let handedness = "unknown";
 
     //determine if we are in an xr session
-    const session = this.#renderer.xr.getSession();
+    const session = this._renderer.xr.getSession();
 
     if (session) {
-      const xrCamera = this.#renderer.xr.getCamera(this.#camera);
-      xrCamera.getWorldDirection(this.#cameraVector);
+      const xrCamera = this._renderer.xr.getCamera(this._camera);
+      xrCamera.getWorldDirection(this._cameraVector);
 
       //a check to prevent console errors if only one input source
       if (this.#isIterable(session.inputSources)) {
@@ -390,18 +448,18 @@ export class VRUser {
                   if (data.handedness == "left") {
                     //console.log("Left Paddle Down");
                     if (i == 1) {
-                      this.#dolly.rotateY(-THREE.MathUtils.degToRad(1));
+                      this._dolly.rotateY(-THREE.MathUtils.degToRad(1));
                     }
                     if (i == 3) {
                       //reset teleport to home position
-                      this.#dolly.position.x = 0;
-                      this.#dolly.position.y = 5;
-                      this.#dolly.position.z = 0;
+                      this._dolly.position.x = 0;
+                      this._dolly.position.y = 5;
+                      this._dolly.position.z = 0;
                     }
                   } else {
                     //console.log("Right Paddle Down");
                     if (i == 1) {
-                      this.#dolly.rotateY(THREE.MathUtils.degToRad(1));
+                      this._dolly.rotateY(THREE.MathUtils.degToRad(1));
                     }
                   }
                 } else {
@@ -411,12 +469,12 @@ export class VRUser {
                     //use the paddle buttons to rotate
                     if (data.handedness == "left") {
                       //console.log("Left Paddle Down");
-                      this.#dolly.rotateY(
+                      this._dolly.rotateY(
                         -THREE.MathUtils.degToRad(Math.abs(value))
                       );
                     } else {
                       //console.log("Right Paddle Down");
-                      this.#dolly.rotateY(
+                      this._dolly.rotateY(
                         THREE.MathUtils.degToRad(Math.abs(value))
                       );
                     }
@@ -440,21 +498,20 @@ export class VRUser {
 
                     //move our user
                     //we reverse the vectors 90degrees so we can do straffing side to side movement
-                    this.#dolly.position.x -=
-                      this.#cameraVector.z *
+                    this._dolly.position.x -=
+                      this._cameraVector.z *
                       this.#speedFactor[i] *
                       data.axes[2];
-                    this.#dolly.position.z +=
-                      this.#cameraVector.x *
+                    this._dolly.position.z +=
+                      this._cameraVector.x *
                       this.#speedFactor[i] *
                       data.axes[2];
                   } else {
                     // (data.axes[2] > 0) ? console.log('left on right thumbstick') : console.log('right on right thumbstick')
-                    this.#dolly.rotateY(
+                    this._dolly.rotateY(
                       -THREE.MathUtils.degToRad(data.axes[2])
                     );
                   }
-                  this.#oControls.update();
                 }
 
                 if (i == 3) {
@@ -464,16 +521,15 @@ export class VRUser {
                     //user.position.y -= speedFactor[i] * data.axes[3];
                   } else {
                     // (data.axes[3] > 0) ? console.log('up on right thumbstick') : console.log('down on right thumbstick')
-                    this.#dolly.position.x -=
-                      this.#cameraVector.x *
+                    this._dolly.position.x -=
+                      this._cameraVector.x *
                       this.#speedFactor[i] *
                       data.axes[3];
-                    this.#dolly.position.z -=
-                      this.#cameraVector.z *
+                    this._dolly.position.z -=
+                      this._cameraVector.z *
                       this.#speedFactor[i] *
                       data.axes[3];
                   }
-                  this.#oControls.update();
                 }
               } else {
                 //axis below threshold - reset the speedFactor if it is greater than zero  or 0.025 but below our threshold

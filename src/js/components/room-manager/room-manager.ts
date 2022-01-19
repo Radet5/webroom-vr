@@ -22,7 +22,12 @@ export class RoomManager {
   #timeStep;
   #world;
 
+  #dataSendTimeAccumulator;
+  #dataSendTimeThreshold;
+
   #players: { [userID: string]: OtherPlayer } = {};
+
+  #temp_quat;
 
   #container;
   constructor(
@@ -38,6 +43,11 @@ export class RoomManager {
       10
     );
 
+    this.#temp_quat = new THREE.Quaternion();
+
+    this.#dataSendTimeAccumulator = 0;
+    this.#dataSendTimeThreshold = 0.1;
+
     this.#serverDataManager = new ServerDataManager();
 
     this.#serverDataManager.registerNewUserCallback((userID) => {
@@ -49,9 +59,64 @@ export class RoomManager {
       delete this.#players[userID];
     });
 
-    this.#serverDataManager.registerUpdatePlayerPositionCallback(
-      (userID, position) => {
-        this.#players[userID].setPosition(position);
+    this.#serverDataManager.registerUpdatePlayerCallback(
+      (userID, playerData) => {
+        this.#players[userID].setPlayerData(playerData);
+      }
+    );
+
+    this.#serverDataManager.registerGrabObjectCallback((userID, grabData) => {
+      const object = this.#physicalObjectsManager.getPhysObjectByName(
+        grabData.objectName
+      );
+      if (object) {
+        this.#players[userID].grabObject(
+          object,
+          grabData.controllerIndex,
+          grabData.objectPosition
+        );
+        this.#physicalObjectsManager.setObjectVelocity(grabData.objectName, {
+          x: 0,
+          y: 0,
+          z: 0,
+        });
+        this.#physicalObjectsManager.setObjectAngularVelocity(
+          grabData.objectName,
+          { x: 0, y: 0, z: 0 }
+        );
+      } else {
+        console.error("Object not found", userID, grabData.objectName);
+      }
+    });
+
+    this.#serverDataManager.registerReleaseObjectCallback(
+      (userID, releaseData) => {
+        const object = this.#players[userID].getHeldObject(
+          releaseData.controllerIndex
+        );
+        console.log(releaseData.objectName, object);
+        if (object) {
+          this.#physicalObjectsManager.setObjectWorldPosition(
+            releaseData.objectName,
+            releaseData.objectPosition
+          );
+          console.log(releaseData.objectQuaternion);
+          this.#temp_quat.set(
+            releaseData.objectQuaternion._x,
+            releaseData.objectQuaternion._y,
+            releaseData.objectQuaternion._z,
+            releaseData.objectQuaternion._w
+          );
+          this.#physicalObjectsManager.setObjectWorldQuaternion(
+            releaseData.objectName,
+            this.#temp_quat
+          );
+          this.#physicalObjectsManager.setObjectVelocity(
+            releaseData.objectName,
+            releaseData.objectVelocity
+          );
+          this.#physicalObjectsManager.reAttachObjectMesh(object);
+        }
       }
     );
 
@@ -75,7 +140,7 @@ export class RoomManager {
     return this.#renderer;
   }
 
-  init() {
+  init(sessionType: string) {
     const scene = this.#scene;
 
     const groundBody = new CANNON.Body({
@@ -92,11 +157,32 @@ export class RoomManager {
     this.#physicalObjectsManager.addBox("box", { x: -1, y: 0, z: 1 });
     this.#physicalObjectsManager.addSphere("sphere", { x: 0, y: 1, z: 1.2 });
 
-    this.#user = new ScreenUser({
-      renderer: this.#renderer,
-      camera: this.#camera,
-      container: this.#container,
-    });
+    if (sessionType == "vr") {
+      this.#user = new VRUser({
+        renderer: this.#renderer,
+        camera: this.#camera,
+        container: this.#container,
+        physicalObjectsManager: this.#physicalObjectsManager,
+      });
+      this.#user.setPosition(0, -1, 3);
+      this.#user.registerGrabObjectCallback((grabObjectData) => {
+        this.#serverDataManager.sendToAll({
+          grabObject: grabObjectData,
+        });
+      });
+      this.#user.registerReleaseObjectCallback((releaseObjectData) => {
+        this.#serverDataManager.sendToAll({
+          releaseObject: releaseObjectData,
+        });
+      });
+    } else {
+      this.#user = new ScreenUser({
+        renderer: this.#renderer,
+        camera: this.#camera,
+        container: this.#container,
+      });
+    }
+
     scene.add(this.#user.getDolly());
 
     //this.#wasPresenting = this.#renderer.xr.isPresenting;
@@ -131,36 +217,25 @@ export class RoomManager {
     const time = performance.now() / 1000; // seconds
     let dt = 0;
     dt = time - this.#lastCallTime;
+    this.#dataSendTimeAccumulator += dt;
     this.#world.step(this.#timeStep, dt);
     this.#lastCallTime = time;
 
     this.#user.update(dt);
     this.#physicalObjectsManager.update();
 
-    if (this.#renderer.xr.isPresenting && !this.#wasPresenting) {
-      this.#user = new VRUser({
-        renderer: this.#renderer,
-        camera: this.#camera,
-        container: this.#container,
-        physicalObjectsManager: this.#physicalObjectsManager,
-      });
-      this.#scene.add(this.#user.getDolly());
-      this.#user.setPosition(0, -1, 3);
-      this.#wasPresenting = true;
-    } else if (!this.#renderer.xr.isPresenting && this.#wasPresenting) {
-      this.#user = new ScreenUser({
-        renderer: this.#renderer,
-        camera: this.#camera,
-        container: this.#container,
-      });
-      this.#scene.add(this.#user.getDolly());
-      this.#user.setPosition(0, 1, 3);
-      this.#wasPresenting = false;
-    }
-
-    if (this.#user.isMoving()) {
+    if (this.#dataSendTimeAccumulator > this.#dataSendTimeThreshold) {
+      this.#dataSendTimeAccumulator = 0;
+      const type = this.#user.getType();
+      const body = {
+        position: this.#user.getPosition(),
+        quaternion: this.#user.getBodyQuaternion(),
+      };
+      const hands = this.#user.getControllerData();
+      const head = this.#user.getHeadData();
+      const playerData = { type, body, hand0: hands[0], hand1: hands[1], head };
       this.#serverDataManager.sendToAll({
-        userPosition: this.#user.getPosition(),
+        playerData,
       });
     }
 
