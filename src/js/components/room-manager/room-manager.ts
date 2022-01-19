@@ -81,7 +81,7 @@ export class RoomManager {
     return this.#renderer;
   }
 
-  init() {
+  init(sessionType: string) {
     const scene = this.#scene;
 
     const groundBody = new CANNON.Body({
@@ -98,11 +98,22 @@ export class RoomManager {
     this.#physicalObjectsManager.addBox("box", { x: -1, y: 0, z: 1 });
     this.#physicalObjectsManager.addSphere("sphere", { x: 0, y: 1, z: 1.2 });
 
-    this.#user = new ScreenUser({
-      renderer: this.#renderer,
-      camera: this.#camera,
-      container: this.#container,
-    });
+    if (sessionType == "vr") {
+      this.#user = new VRUser({
+        renderer: this.#renderer,
+        camera: this.#camera,
+        container: this.#container,
+        physicalObjectsManager: this.#physicalObjectsManager,
+      });
+      this.#user.setPosition(0, -1, 3);
+    } else {
+      this.#user = new ScreenUser({
+        renderer: this.#renderer,
+        camera: this.#camera,
+        container: this.#container,
+      });
+    }
+
     scene.add(this.#user.getDolly());
 
     //this.#wasPresenting = this.#renderer.xr.isPresenting;
@@ -143,27 +154,6 @@ export class RoomManager {
 
     this.#user.update(dt);
     this.#physicalObjectsManager.update();
-
-    if (this.#renderer.xr.isPresenting && !this.#wasPresenting) {
-      this.#user = new VRUser({
-        renderer: this.#renderer,
-        camera: this.#camera,
-        container: this.#container,
-        physicalObjectsManager: this.#physicalObjectsManager,
-      });
-      this.#scene.add(this.#user.getDolly());
-      this.#user.setPosition(0, -1, 3);
-      this.#wasPresenting = true;
-    } else if (!this.#renderer.xr.isPresenting && this.#wasPresenting) {
-      this.#user = new ScreenUser({
-        renderer: this.#renderer,
-        camera: this.#camera,
-        container: this.#container,
-      });
-      this.#scene.add(this.#user.getDolly());
-      this.#user.setPosition(0, 1, 3);
-      this.#wasPresenting = false;
-    }
 
     if (this.#dataSendTimeAccumulator > this.#dataSendTimeThreshold) {
       this.#dataSendTimeAccumulator = 0;
