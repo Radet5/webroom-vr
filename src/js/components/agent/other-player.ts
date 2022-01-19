@@ -22,8 +22,8 @@ export interface PlayerData {
 
 export class OtherPlayer {
   #userID;
-  #hand0: THREE.Mesh;
-  #hand1: THREE.Mesh;
+  #hand0: THREE.Group;
+  #hand1: THREE.Group;
   #head: THREE.Mesh;
   #body: THREE.Mesh;
   #dolly;
@@ -85,8 +85,10 @@ export class OtherPlayer {
       }
       if (playerData.type != this.#playerType) {
 
-        this.#hand0 = this.#initHand();
-        this.#hand1 = this.#initHand();
+        this.#hand0 = new THREE.Group();
+        this.#hand0.add(this.#initHand());
+        this.#hand1 = new THREE.Group();
+        this.#hand1.add(this.#initHand());
         this.#head = this.#initHead();
         this.#dolly.add(this.#hand0);
         this.#dolly.add(this.#hand1);
