@@ -34,7 +34,6 @@ export class OtherPlayer {
     this.#userID = userID;
     this.#dolly = new THREE.Group();
     this.#playerColor = this.#colorFromUserID();
-
   }
 
   addToScene(scene: THREE.Scene) {
@@ -46,6 +45,29 @@ export class OtherPlayer {
       scene.remove(child);
     });
     scene.remove(this.#dolly);
+  }
+
+  grabObject(
+    object: THREE.Object3D,
+    controllerIndex: number,
+    objectPosition: THREE.Vector3
+  ) {
+    object.position.set(objectPosition.x, objectPosition.y, objectPosition.z);
+    if (controllerIndex == 0) {
+      this.#hand0.attach(object);
+      this.#hand0.userData.grabbedObject = object;
+    } else {
+      this.#hand1.attach(object);
+      this.#hand0.userData.grabbedObject = object;
+    }
+  }
+
+  getHeldObject(controllerIndex: number) {
+    if (controllerIndex == 0) {
+      return this.#hand0.userData.grabbedObject;
+    } else {
+      return this.#hand1.userData.grabbedObject;
+    }
   }
 
   setPlayerData(playerData: PlayerData) {

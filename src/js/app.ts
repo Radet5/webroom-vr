@@ -42,6 +42,7 @@ div.appendChild(img);
 
 function onVR() {
   showStuff();
+  document.body.appendChild(VRButton.createButton(renderer));
   roomManager.init("vr");
   roomManager.animate();
 }
@@ -55,5 +56,4 @@ function onScreen() {
 function showStuff() {
   document.body.removeChild(div);
   container.appendChild(renderer.domElement);
-  document.body.appendChild(VRButton.createButton(renderer));
 }

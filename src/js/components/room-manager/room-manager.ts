@@ -27,6 +27,8 @@ export class RoomManager {
 
   #players: { [userID: string]: OtherPlayer } = {};
 
+  #temp_quat;
+
   #container;
   constructor(
     container: HTMLElement,
@@ -40,6 +42,8 @@ export class RoomManager {
       0.1,
       10
     );
+
+    this.#temp_quat = new THREE.Quaternion();
 
     this.#dataSendTimeAccumulator = 0;
     this.#dataSendTimeThreshold = 0.1;
@@ -58,6 +62,61 @@ export class RoomManager {
     this.#serverDataManager.registerUpdatePlayerCallback(
       (userID, playerData) => {
         this.#players[userID].setPlayerData(playerData);
+      }
+    );
+
+    this.#serverDataManager.registerGrabObjectCallback((userID, grabData) => {
+      const object = this.#physicalObjectsManager.getPhysObjectByName(
+        grabData.objectName
+      );
+      if (object) {
+        this.#players[userID].grabObject(
+          object,
+          grabData.controllerIndex,
+          grabData.objectPosition
+        );
+        this.#physicalObjectsManager.setObjectVelocity(grabData.objectName, {
+          x: 0,
+          y: 0,
+          z: 0,
+        });
+        this.#physicalObjectsManager.setObjectAngularVelocity(
+          grabData.objectName,
+          { x: 0, y: 0, z: 0 }
+        );
+      } else {
+        console.error("Object not found", userID, grabData.objectName);
+      }
+    });
+
+    this.#serverDataManager.registerReleaseObjectCallback(
+      (userID, releaseData) => {
+        const object = this.#players[userID].getHeldObject(
+          releaseData.controllerIndex
+        );
+        console.log(releaseData.objectName, object);
+        if (object) {
+          this.#physicalObjectsManager.setObjectWorldPosition(
+            releaseData.objectName,
+            releaseData.objectPosition
+          );
+          console.log(releaseData.objectQuaternion);
+          this.#temp_quat.set(
+            releaseData.objectQuaternion._x,
+            releaseData.objectQuaternion._y,
+            releaseData.objectQuaternion._z,
+            releaseData.objectQuaternion._w
+          );
+          this.#physicalObjectsManager.setObjectWorldQuaternion(
+            releaseData.objectName,
+            this.#temp_quat
+          );
+          this.#physicalObjectsManager.setObjectVelocity(
+            releaseData.objectName,
+            releaseData.objectVelocity
+          );
+          this.#physicalObjectsManager.reAttachObjectMesh(object);
+        }
       }
     );
 
@@ -106,6 +165,16 @@ export class RoomManager {
         physicalObjectsManager: this.#physicalObjectsManager,
       });
       this.#user.setPosition(0, -1, 3);
+      this.#user.registerGrabObjectCallback((grabObjectData) => {
+        this.#serverDataManager.sendToAll({
+          grabObject: grabObjectData,
+        });
+      });
+      this.#user.registerReleaseObjectCallback((releaseObjectData) => {
+        this.#serverDataManager.sendToAll({
+          releaseObject: releaseObjectData,
+        });
+      });
     } else {
       this.#user = new ScreenUser({
         renderer: this.#renderer,

@@ -10,6 +10,20 @@ interface XRUserParams {
   physicalObjectsManager: PhysicalObjectsManager;
 }
 
+export interface GrabObjectInterface {
+  objectName: string;
+  controllerIndex: number;
+  objectPosition: THREE.Vector3;
+}
+
+export interface releaseObjectInterface {
+  objectName: string;
+  objectPosition: THREE.Vector3;
+  objectQuaternion: any;
+  objectVelocity: THREE.Vector3;
+  controllerIndex: number;
+}
+
 export class VRUser extends User {
   #controller1;
   #controller2;
@@ -23,9 +37,20 @@ export class VRUser extends User {
   #raycaster;
   #physicalObjectsManager;
   #head;
+  #grabObjectCallback: ({
+    objectName,
+    controllerIndex,
+  }: GrabObjectInterface) => void;
+  #releaseObjectCallback: ({
+    objectName,
+    objectPosition,
+    objectQuaternion,
+    objectVelocity,
+  }: releaseObjectInterface) => void;
   #temp_quat;
   #temp_matrix;
   #temp_vec3;
+  #temp_vec3_2;
   #temp_displacement;
   #temp_velocity;
 
@@ -46,6 +71,7 @@ export class VRUser extends User {
     this.#temp_quat = new THREE.Quaternion();
     this.#temp_matrix = new THREE.Matrix4();
     this.#temp_vec3 = new THREE.Vector3();
+    this.#temp_vec3_2 = new THREE.Vector3();
     this.#temp_displacement = new THREE.Vector3();
     this.#temp_velocity = new THREE.Vector3();
 
@@ -60,6 +86,8 @@ export class VRUser extends User {
     this.#head = new THREE.Mesh(headGeo, headMat);
     this.#head.position.set(0, 1, 0);
     this.#head.visible = false;
+
+    //this.#releaseObjectCallback;
 
     this.#raycaster = new THREE.Raycaster();
 
@@ -90,7 +118,7 @@ export class VRUser extends User {
   }
 
   getHeadData() {
-    this.#temp_quat.setFromRotationMatrix( this._dolly.matrixWorld );
+    this.#temp_quat.setFromRotationMatrix(this._dolly.matrixWorld);
     return {
       position: this.#head.position,
       quaternion: this.#temp_quat,
@@ -99,6 +127,18 @@ export class VRUser extends User {
 
   getType(): string {
     return "vr-user";
+  }
+
+  registerGrabObjectCallback(
+    callback: ({ objectName, controllerIndex }: GrabObjectInterface) => void
+  ) {
+    this.#grabObjectCallback = callback;
+  }
+
+  registerReleaseObjectCallback(
+    callback: (releaseObjectData: releaseObjectInterface) => void
+  ) {
+    this.#releaseObjectCallback = callback;
   }
 
   update(dt: number) {
@@ -159,6 +199,8 @@ export class VRUser extends User {
     controller.addEventListener("selectstart", (e) => this.#onSelectStart(e));
     controller.addEventListener("selectend", (e) => this.#onSelectEnd(e));
 
+    controller.userData.index = controllerIndex;
+
     const geometry = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(0, 0, 0),
       new THREE.Vector3(0, 0, -1),
@@ -184,12 +226,19 @@ export class VRUser extends User {
     const controller = event.target;
     const intersections = this.#getIntersections(controller);
     controller.userData.carrying = true;
+    console.log(controller);
 
     if (intersections.length > 0) {
       const intersection = intersections[0];
       const object = intersection.object;
-      //object.material.emissive.b = 1;
       controller.attach(object);
+      if (typeof this.#grabObjectCallback === "function") {
+        this.#grabObjectCallback({
+          objectName: object.userData.name,
+          controllerIndex: controller.userData.index,
+          objectPosition: object.getWorldPosition(this.#temp_vec3),
+        });
+      }
       //console.log( 'attach', object );
       this.#physicalObjectsManager.setObjectVelocity(object.userData.name, {
         x: 0,
@@ -217,16 +266,11 @@ export class VRUser extends User {
 
       this.#physicalObjectsManager.setObjectWorldPosition(
         object.userData.name,
-        { x: this.#temp_vec3.x, y: this.#temp_vec3.y, z: this.#temp_vec3.z }
+        this.#temp_vec3
       );
       this.#physicalObjectsManager.setObjectWorldQuaternion(
         object.userData.name,
-        {
-          x: this.#temp_quat.x,
-          y: this.#temp_quat.y,
-          z: this.#temp_quat.z,
-          w: this.#temp_quat.w,
-        }
+        this.#temp_quat
       );
       this.#physicalObjectsManager.setObjectVelocity(object.userData.name, {
         x: throwVeloctiy.x,
@@ -234,6 +278,15 @@ export class VRUser extends User {
         z: throwVeloctiy.z,
       });
       this.#physicalObjectsManager.reAttachObjectMesh(object);
+      if (typeof this.#releaseObjectCallback === "function") {
+        this.#releaseObjectCallback({
+          objectName: object.userData.name,
+          objectPosition: this.#temp_vec3,
+          objectQuaternion: this.#temp_quat,
+          objectVelocity: throwVeloctiy,
+          controllerIndex: controller.userData.index,
+        });
+      }
       controller.userData.selected = undefined;
     }
   }
@@ -332,7 +385,7 @@ export class VRUser extends User {
   }
 
   #getControllerThrowVelocity(controller: THREE.Group) {
-    const avgThrowVelocity = new THREE.Vector3();
+    const avgThrowVelocity = this.#temp_vec3_2;
     const throwVelocities = controller.userData.throwVelocities;
     //console.log(throwVelocities);
     const length = throwVelocities.length;

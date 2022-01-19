@@ -3,6 +3,8 @@ import Peer from "simple-peer";
 import { Buffer } from "buffer";
 import "dotenv/config";
 import type { PlayerData } from "../agent/other-player";
+import type { GrabObjectInterface } from "../user/vr-user";
+import type { releaseObjectInterface } from "../user/vr-user";
 
 const ENV = process.env.NODE_ENV || "development";
 
@@ -13,6 +15,14 @@ export class ServerDataManager {
   #newUserCallback: (userID: string) => void;
   #removeUserCallback: (userID: string) => void;
   #updatePlayerCallback: (userId: string, playerData: PlayerData) => void;
+  #grabObjectCallback: (
+    userID: string,
+    grabObjectData: GrabObjectInterface
+  ) => void;
+  #releaseObjectCallback: (
+    userId: string,
+    releaseObjectData: releaseObjectInterface
+  ) => void;
   constructor() {
     if (ENV === "production") {
       this.#serverURL = "https://api.radet5.com:8000";
@@ -46,6 +56,21 @@ export class ServerDataManager {
     callback: (userID: string, playerData: PlayerData) => void
   ) {
     this.#updatePlayerCallback = callback;
+  }
+
+  registerGrabObjectCallback(
+    callback: (userID: string, grabObjectData: GrabObjectInterface) => void
+  ) {
+    this.#grabObjectCallback = callback;
+  }
+
+  registerReleaseObjectCallback(
+    callback: (
+      userID: string,
+      releaseObjectData: releaseObjectInterface
+    ) => void
+  ) {
+    this.#releaseObjectCallback = callback;
   }
 
   start() {
@@ -85,12 +110,17 @@ export class ServerDataManager {
   #parseData(data: any) {
     const parsedData = JSON.parse(Buffer.from(data).toString());
     //console.log(parsedData);
-    //console.log(parsedData.userID, "playerData", parsedData.data.playerData.head.position);
     Object.keys(parsedData.data).forEach((key: string) => {
       if (key === "playerData") {
         if (typeof this.#updatePlayerCallback === "function") {
           this.#updatePlayerCallback(parsedData.userID, parsedData.data[key]);
         }
+      } else if (key === "grabObject") {
+        console.log(parsedData.userID, "grabObject", parsedData.data.grabObject);
+        this.#grabObjectCallback(parsedData.userID, parsedData.data.grabObject);
+      } else if (key === "releaseObject") {
+        console.log(parsedData.userID, "releaseObject", parsedData.data.releaseObject);
+        this.#releaseObjectCallback(parsedData.userID, parsedData.data.releaseObject);
       }
     });
   }
