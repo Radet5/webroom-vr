@@ -19,7 +19,7 @@ div.style.margin = "auto";
 div.style.textAlign = "center";
 const text = document.createElement("div");
 text.innerHTML =
-  "<h2>Radet's Sharable 3D Homepage</h2><p>invite up to four (4) friends by having them come to this same page</p><p>Choose your experience:</p>";
+  "<h2>Radet's Sharable 3D Homepage</h2><img src='https://www.fg-a.com/under-construction/digital-construction.gif' /><p>invite up to four (4) friends by having them come to this same page</p><p>Choose your experience:</p>";
 const vrButton = document.createElement("button");
 vrButton.innerText = "VR";
 vrButton.onclick = onVR;
@@ -34,6 +34,11 @@ div.appendChild(text);
 div.appendChild(vrButton);
 div.appendChild(kbmButton);
 document.body.appendChild(div);
+const img = document.createElement("img");
+img.src = "https://www.fg-a.com/under-construction/flashing-construction-sign.gif";
+img.style.display = "block";
+img.style.margin = "30px auto";
+div.appendChild(img);
 
 function onVR() {
   showStuff();
