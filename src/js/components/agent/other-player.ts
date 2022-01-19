@@ -58,7 +58,7 @@ export class OtherPlayer {
       this.#hand0.userData.grabbedObject = object;
     } else {
       this.#hand1.attach(object);
-      this.#hand0.userData.grabbedObject = object;
+      this.#hand1.userData.grabbedObject = object;
     }
   }
 
