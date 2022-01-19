@@ -1,4 +1,3 @@
-import { Vec3 } from "math/Vec3";
 import * as THREE from "three";
 
 interface SimpleVector3 {
@@ -84,7 +83,6 @@ export class OtherPlayer {
         });
       }
       if (playerData.type != this.#playerType) {
-
         this.#hand0 = new THREE.Group();
         this.#hand0.add(this.#initHand());
         this.#hand1 = new THREE.Group();
@@ -104,16 +102,38 @@ export class OtherPlayer {
       const headPosition = playerData.head.position;
       const headQuaternion = playerData.head.quaternion;
 
-      this.#hand0.position.set(hand0Position.x, hand0Position.y, hand0Position.z);
-      this.#hand0.quaternion.set(hand0Quaternion._x, hand0Quaternion._y, hand0Quaternion._z, hand0Quaternion._w);
-      this.#hand1.position.set(hand1Position.x, hand1Position.y, hand1Position.z);
-      this.#hand1.quaternion.set(hand1Quaternion._x, hand1Quaternion._y, hand1Quaternion._z, hand1Quaternion._w);
+      this.#hand0.position.set(
+        hand0Position.x,
+        hand0Position.y,
+        hand0Position.z
+      );
+      this.#hand0.quaternion.set(
+        hand0Quaternion._x,
+        hand0Quaternion._y,
+        hand0Quaternion._z,
+        hand0Quaternion._w
+      );
+      this.#hand1.position.set(
+        hand1Position.x,
+        hand1Position.y,
+        hand1Position.z
+      );
+      this.#hand1.quaternion.set(
+        hand1Quaternion._x,
+        hand1Quaternion._y,
+        hand1Quaternion._z,
+        hand1Quaternion._w
+      );
       this.#head.position.set(headPosition.x, headPosition.y, headPosition.z);
-      this.#head.quaternion.set(headQuaternion._x, headQuaternion._y, headQuaternion._z, headQuaternion._w);
+      this.#head.quaternion.set(
+        headQuaternion._x,
+        headQuaternion._y,
+        headQuaternion._z,
+        headQuaternion._w
+      );
     }
     const bodyPosition = playerData.body.position;
     const bodyQuaternion = playerData.body.quaternion;
-
 
     this.#dolly.position.set(bodyPosition.x, bodyPosition.y, bodyPosition.z);
     this.#dolly.quaternion.set(

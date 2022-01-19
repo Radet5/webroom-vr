@@ -15,13 +15,6 @@ interface Coordinates {
   z: number;
 }
 
-interface Rotation4D {
-  x: number;
-  y: number;
-  z: number;
-  w: number;
-}
-
 export class PhysicalObjectsManager {
   #physicsObjects: PhysicsObjectsInterface;
   #world;
@@ -77,7 +70,7 @@ export class PhysicalObjectsManager {
     );
   }
 
-  reAttachObjectMesh(meshObject: Object3D ) {
+  reAttachObjectMesh(meshObject: Object3D) {
     console.log(meshObject);
     this.#physicsObjects.meshes.attach(meshObject);
   }
