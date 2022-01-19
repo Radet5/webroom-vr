@@ -58,7 +58,8 @@ export class VRUser extends User {
     const headGeo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
     const headMat = new THREE.MeshPhongMaterial({ color: 0xffffff });
     this.#head = new THREE.Mesh(headGeo, headMat);
-    this.#head.position.set(0, 1.7, 0);
+    this.#head.position.set(0, 1, 0);
+    this.#head.visible = false;
 
     this.#raycaster = new THREE.Raycaster();
 
@@ -83,15 +84,16 @@ export class VRUser extends User {
       },
       {
         position: this.#controller2.position,
-        quaternion: this._camera.quaternion,
+        quaternion: this.#controller2.quaternion,
       },
     ];
   }
 
   getHeadData() {
+    this.#temp_quat.setFromRotationMatrix( this._dolly.matrixWorld );
     return {
       position: this.#head.position,
-      quaternion: this.#head.quaternion,
+      quaternion: this.#temp_quat,
     };
   }
 
