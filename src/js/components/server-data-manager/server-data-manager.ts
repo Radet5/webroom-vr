@@ -85,7 +85,7 @@ export class ServerDataManager {
   #parseData(data: any) {
     const parsedData = JSON.parse(Buffer.from(data).toString());
     //console.log(parsedData);
-    //console.log(parsedData.userID, "playerData", parsedData.data.playerData.hand0.position);
+    console.log(parsedData.userID, "playerData", parsedData.data.playerData.head.position);
     Object.keys(parsedData.data).forEach((key: string) => {
       if (key === "playerData") {
         if (typeof this.#updatePlayerCallback === "function") {

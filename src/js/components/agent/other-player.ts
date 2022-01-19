@@ -17,31 +17,24 @@ export interface PlayerData {
   head: PlayerPart;
   hand0: PlayerPart;
   hand1: PlayerPart;
+  type: string;
 }
 
 export class OtherPlayer {
   #userID;
-  #hand0;
-  #hand1;
-  #head;
+  #hand0: THREE.Mesh;
+  #hand1: THREE.Mesh;
+  #head: THREE.Mesh;
+  #body: THREE.Mesh;
   #dolly;
+  #playerType;
   #playerColor;
   constructor(userID: string) {
+    this.#playerType = "";
     this.#userID = userID;
     this.#dolly = new THREE.Group();
     this.#playerColor = this.#colorFromUserID();
 
-    const body = this.#initBody();
-    this.#hand0 = this.#initHand();
-    this.#hand0.position.set(-0.4, 0.5, 0);
-    this.#hand1 = this.#initHand();
-    this.#hand1.position.set(0.4, 0.5, 0);
-    this.#head = this.#initHead();
-
-    this.#dolly.add(body);
-    this.#dolly.add(this.#hand0);
-    this.#dolly.add(this.#hand1);
-    this.#dolly.add(this.#head);
   }
 
   addToScene(scene: THREE.Scene) {
@@ -56,14 +49,47 @@ export class OtherPlayer {
   }
 
   setPlayerData(playerData: PlayerData) {
+    if (playerData.type == "screen-user") {
+      if (playerData.type != this.#playerType) {
+        this.#body = this.#initBody();
+        this.#dolly.add(this.#body);
+        this.#playerType = playerData.type;
+      }
+    } else if (playerData.type == "vr-user") {
+      if (this.#playerType == "screen-user") {
+        this.#dolly.children.forEach((child) => {
+          child.visible = false;
+        });
+      }
+      if (playerData.type != this.#playerType) {
+
+        this.#hand0 = this.#initHand();
+        this.#hand1 = this.#initHand();
+        this.#head = this.#initHead();
+        this.#dolly.add(this.#hand0);
+        this.#dolly.add(this.#hand1);
+        this.#dolly.add(this.#head);
+        this.#dolly.rotateY(180);
+        this.#playerType = playerData.type;
+      }
+
+      const hand0Position = playerData.hand0.position;
+      const hand0Quaternion = playerData.hand0.quaternion;
+      const hand1Position = playerData.hand1.position;
+      const hand1Quaternion = playerData.hand1.quaternion;
+      const headPosition = playerData.head.position;
+      const headQuaternion = playerData.head.quaternion;
+
+      this.#hand0.position.set(hand0Position.x, hand0Position.y, hand0Position.z);
+      this.#hand0.quaternion.set(hand0Quaternion._x, hand0Quaternion._y, hand0Quaternion._z, hand0Quaternion._w);
+      this.#hand1.position.set(hand1Position.x, hand1Position.y, hand1Position.z);
+      this.#hand1.quaternion.set(hand1Quaternion._x, hand1Quaternion._y, hand1Quaternion._z, hand1Quaternion._w);
+      this.#head.position.set(headPosition.x, headPosition.y, headPosition.z);
+      this.#head.quaternion.set(headQuaternion._x, headQuaternion._y, headQuaternion._z, headQuaternion._w);
+    }
     const bodyPosition = playerData.body.position;
     const bodyQuaternion = playerData.body.quaternion;
-    const hand0Position = playerData.hand0.position;
-    const hand0Quaternion = playerData.hand0.quaternion;
-    const hand1Position = playerData.hand1.position;
-    const hand1Quaternion = playerData.hand1.quaternion;
-    const headPosition = playerData.head.position;
-    const headQuaternion = playerData.head.quaternion;
+
 
     this.#dolly.position.set(bodyPosition.x, bodyPosition.y, bodyPosition.z);
     this.#dolly.quaternion.set(
@@ -72,17 +98,11 @@ export class OtherPlayer {
       bodyQuaternion._z,
       bodyQuaternion._w
     );
-    this.#hand0.position.set(hand0Position.x, hand0Position.y, hand0Position.z);
-    this.#hand0.quaternion.set(hand0Quaternion._x, hand0Quaternion._y, hand0Quaternion._z, hand0Quaternion._w);
-    this.#hand1.position.set(hand1Position.x, hand1Position.y, hand1Position.z);
-    this.#hand1.quaternion.set(hand1Quaternion._x, hand1Quaternion._y, hand1Quaternion._z, hand1Quaternion._w);
-    this.#head.position.set(headPosition.x, headPosition.y, headPosition.z);
-    this.#head.quaternion.set(headQuaternion._x, headQuaternion._y, headQuaternion._z, headQuaternion._w);
   }
 
   #initHead() {
     return this.makeBox(
-      { x: 0, y: 1.2, z: 0 },
+      { x: 0, y: 0, z: 0 },
       { x: 0.2, y: 0.2, z: 0.2 },
       this.#playerColor
     );
@@ -91,14 +111,14 @@ export class OtherPlayer {
   #initHand() {
     return this.makeBox(
       { x: 0, y: 0, z: 0 },
-      { x: 0.05, y: 0.1, z: 0.02 },
+      { x: 0.02, y: 0.05, z: 0.1 },
       this.#playerColor
     );
   }
 
   #initBody() {
     return this.makeBox(
-      { x: 0, y: 0.5, z: 0 },
+      { x: 0, y: 0.0, z: 0 },
       { x: 0.5, y: 1, z: 0.2 },
       this.#playerColor
     );

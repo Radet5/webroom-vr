@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import { User } from "./user";
 import { XRControllerModelFactory } from "three/examples/jsm/webxr/XRControllerModelFactory.js";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import type { PhysicalObjectsManager } from "../objects-manager/physical-objects-manager";
 
 interface XRUserParams {
@@ -23,7 +22,6 @@ export class VRUser extends User {
   #previousPosition: THREE.Vector3;
   #raycaster;
   #physicalObjectsManager;
-  #oControls;
   #temp_quat;
   #temp_matrix;
   #temp_vec3;
@@ -58,10 +56,6 @@ export class VRUser extends User {
 
     this.#raycaster = new THREE.Raycaster();
 
-    this.#oControls = new OrbitControls(this._camera, container);
-    this.#oControls.target.set(0, 1, -2);
-    this.#oControls.update();
-
     this.#previousPosition = new THREE.Vector3();
 
     this._dolly.add(this.#controller1);
@@ -72,7 +66,6 @@ export class VRUser extends User {
 
   setPosition(x: number, y: number, z: number) {
     this._dolly.position.set(x, y, z);
-    this.#oControls.update();
   }
 
   getControllerData() {
@@ -86,6 +79,13 @@ export class VRUser extends User {
         quaternion: this.#controller2.quaternion,
       },
     ];
+  }
+
+  getCameraData() {
+    return {
+      position: this._dolly.position,
+      quaternion: this._dolly.quaternion,
+    };
   }
 
   getType(): string {
@@ -450,7 +450,6 @@ export class VRUser extends User {
                       -THREE.MathUtils.degToRad(data.axes[2])
                     );
                   }
-                  this.#oControls.update();
                 }
 
                 if (i == 3) {
@@ -469,7 +468,6 @@ export class VRUser extends User {
                       this.#speedFactor[i] *
                       data.axes[3];
                   }
-                  this.#oControls.update();
                 }
               } else {
                 //axis below threshold - reset the speedFactor if it is greater than zero  or 0.025 but below our threshold
