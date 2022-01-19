@@ -22,6 +22,9 @@ export class RoomManager {
   #timeStep;
   #world;
 
+  #dataSendTimeAccumulator;
+  #dataSendTimeThreshold;
+
   #players: { [userID: string]: OtherPlayer } = {};
 
   #container;
@@ -38,6 +41,9 @@ export class RoomManager {
       10
     );
 
+    this.#dataSendTimeAccumulator = 0;
+    this.#dataSendTimeThreshold = 0.1;
+
     this.#serverDataManager = new ServerDataManager();
 
     this.#serverDataManager.registerNewUserCallback((userID) => {
@@ -49,9 +55,9 @@ export class RoomManager {
       delete this.#players[userID];
     });
 
-    this.#serverDataManager.registerUpdatePlayerPositionCallback(
-      (userID, position) => {
-        this.#players[userID].setPosition(position);
+    this.#serverDataManager.registerUpdatePlayerCallback(
+      (userID, playerData) => {
+        this.#players[userID].setPlayerData(playerData);
       }
     );
 
@@ -131,6 +137,7 @@ export class RoomManager {
     const time = performance.now() / 1000; // seconds
     let dt = 0;
     dt = time - this.#lastCallTime;
+    this.#dataSendTimeAccumulator += dt;
     this.#world.step(this.#timeStep, dt);
     this.#lastCallTime = time;
 
@@ -158,9 +165,18 @@ export class RoomManager {
       this.#wasPresenting = false;
     }
 
-    if (this.#user.isMoving()) {
+    if (this.#dataSendTimeAccumulator > this.#dataSendTimeThreshold) {
+      this.#dataSendTimeAccumulator = 0;
+      const type = this.#user.getType();
+      const body = {
+        position: this.#user.getPosition(),
+        quaternion: this.#user.getBodyQuaternion(),
+      };
+      const hands = this.#user.getControllerData();
+      const head = this.#user.getCameraData();
+      const playerData = { type, body, hand0: hands[0], hand1: hands[1], head };
       this.#serverDataManager.sendToAll({
-        userPosition: this.#user.getPosition(),
+        playerData,
       });
     }
 

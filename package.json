@@ -5,7 +5,7 @@
   "author": "Radet 5 <radientradet5@gmail.com> (https://radet5.com)",
   "scripts": {
     "start": "parcel src/index.html",
-    "build": "parcel build src/index.html",
+    "build": "cross-env NODE=production parcel build --dist-dir build src/index.html ",
     "lint": "eslint **/*.ts"
   },
   "homepage": "https://github.com/Radet5/webroom-vr",
@@ -31,6 +31,7 @@
     "@types/socket.io-client": "^3.0.0",
     "@typescript-eslint/eslint-plugin": "^5.9.1",
     "@typescript-eslint/parser": "^5.9.1",
+    "cross-env": "^7.0.3",
     "eslint": "^8.6.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-prettier": "^4.0.0",

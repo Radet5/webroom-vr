@@ -1,6 +1,10 @@
 import { io } from "socket.io-client";
 import Peer from "simple-peer";
 import { Buffer } from "buffer";
+import "dotenv/config";
+import type { PlayerData } from "../agent/other-player";
+
+const ENV = process.env.NODE_ENV || "development";
 
 export class ServerDataManager {
   #serverURL;
@@ -8,9 +12,13 @@ export class ServerDataManager {
   #peers: any;
   #newUserCallback: (userID: string) => void;
   #removeUserCallback: (userID: string) => void;
-  #updatePlayerPositionCallback: (userID: string, position: any) => void;
+  #updatePlayerCallback: (userId: string, playerData: PlayerData) => void;
   constructor() {
-    this.#serverURL = "https://api.radet5.com:8000";
+    if (ENV === "production") {
+      this.#serverURL = "https://api.radet5.com:8000";
+    } else {
+      this.#serverURL = "http://localhost:8000";
+    }
     this.#peers = [];
   }
 
@@ -34,8 +42,10 @@ export class ServerDataManager {
     this.#removeUserCallback = callback;
   }
 
-  registerUpdatePlayerPositionCallback(callback: (userID: string, position: any) => void) {
-    this.#updatePlayerPositionCallback = callback;
+  registerUpdatePlayerCallback(
+    callback: (userID: string, playerData: PlayerData) => void
+  ) {
+    this.#updatePlayerCallback = callback;
   }
 
   start() {
@@ -75,11 +85,11 @@ export class ServerDataManager {
   #parseData(data: any) {
     const parsedData = JSON.parse(Buffer.from(data).toString());
     //console.log(parsedData);
-    console.log(parsedData.userID, "position", parsedData.data.userPosition);
+    //console.log(parsedData.userID, "playerData", parsedData.data.playerData.hand0.position);
     Object.keys(parsedData.data).forEach((key: string) => {
-      if (key === "userPosition") {
-        if (typeof this.#updatePlayerPositionCallback === "function") {
-          this.#updatePlayerPositionCallback(parsedData.userID, parsedData.data[key]);
+      if (key === "playerData") {
+        if (typeof this.#updatePlayerCallback === "function") {
+          this.#updatePlayerCallback(parsedData.userID, parsedData.data[key]);
         }
       }
     });

@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { User } from "./user";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls";
 
 interface ScreenUserParams {
@@ -7,29 +8,16 @@ interface ScreenUserParams {
   container: HTMLElement;
 }
 
-export class ScreenUser {
-  #dolly;
-  #camera;
-  #speedFactor;
-  #moving;
+export class ScreenUser extends User {
   #previousPosition: THREE.Vector3;
   #controls;
-  #renderer;
   #temp_posistion;
   constructor({ renderer, camera, container }: ScreenUserParams) {
-    this.#renderer = renderer;
-    this.#camera = camera;
-    this.#speedFactor = [0.1, 0.1, 0.1, 0.1];
-    this.#moving = false;
+    super({ renderer, camera, container });
 
     this.#temp_posistion = new THREE.Vector3();
 
     this.#previousPosition = new THREE.Vector3();
-
-    this.#dolly = new THREE.Group();
-    this.#dolly.position.set(0, 0, 3);
-    this.#dolly.name = "user";
-    this.#dolly.add(this.#camera);
 
     this.#controls = new PointerLockControls(camera, renderer.domElement);
     const controls = this.#controls;
@@ -43,7 +31,6 @@ export class ScreenUser {
     const onKeyDown = function (event: KeyboardEvent) {
       switch (event.code) {
         case "KeyW":
-          console.log("W");
           controls.moveForward(0.25);
           break;
         case "KeyA":
@@ -61,27 +48,27 @@ export class ScreenUser {
   }
 
   setPosition(x: number, y: number, z: number) {
-    this.#dolly.position.set(x, y, z);
+    this._dolly.position.set(x, y, z);
   }
 
   getPosition() {
-    return this.#camera.getWorldPosition(this.#temp_posistion);
+    return this._camera.getWorldPosition(this.#temp_posistion);
   }
 
-  getDolly() {
-    return this.#dolly;
+  getBodyQuaternion(): THREE.Quaternion {
+    return this._camera.quaternion;
   }
 
-  isMoving() {
-    return this.#moving;
+  getType() {
+    return "screen-user";
   }
 
-  update(dt: number) {
-    if (this.#previousPosition.distanceTo(this.#camera.position) > 0.01) {
-      this.#moving = true;
+  update() {
+    if (this.#previousPosition.distanceTo(this._camera.position) > 0.01) {
+      this._moving = true;
     } else {
-      this.#moving = false;
+      this._moving = false;
     }
-    this.#previousPosition.copy(this.#camera.position);
+    this.#previousPosition.copy(this._camera.position);
   }
 }

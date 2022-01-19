@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { User } from "./user";
 import { XRControllerModelFactory } from "three/examples/jsm/webxr/XRControllerModelFactory.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import type { PhysicalObjectsManager } from "../objects-manager/physical-objects-manager";
@@ -10,23 +11,19 @@ interface XRUserParams {
   physicalObjectsManager: PhysicalObjectsManager;
 }
 
-export class VRUser {
+export class VRUser extends User {
   #controller1;
   #controller2;
   #controllerGrip1;
   #controllerGrip2;
-  #dolly;
-  #camera;
-  #cameraVector;
+  _cameraVector;
   #prevGamePads;
   #speedFactor;
   #intersected: Array<THREE.Object3D>;
-  #moving;
   #previousPosition: THREE.Vector3;
   #raycaster;
   #physicalObjectsManager;
   #oControls;
-  #renderer;
   #temp_quat;
   #temp_matrix;
   #temp_vec3;
@@ -39,14 +36,12 @@ export class VRUser {
     container,
     physicalObjectsManager,
   }: XRUserParams) {
-    this.#renderer = renderer;
-    this.#camera = camera;
+    super({ renderer, camera, container });
     this.#physicalObjectsManager = physicalObjectsManager;
-    this.#cameraVector = new THREE.Vector3();
+    this._cameraVector = new THREE.Vector3();
     this.#prevGamePads = new Map();
     this.#speedFactor = [0.1, 0.1, 0.1, 0.1];
     this.#intersected = [];
-    this.#moving = false;
 
     //reusable temp variables so we don't have to create new ones every frame
     this.#temp_quat = new THREE.Quaternion();
@@ -63,37 +58,38 @@ export class VRUser {
 
     this.#raycaster = new THREE.Raycaster();
 
-    this.#oControls = new OrbitControls(this.#camera, container);
+    this.#oControls = new OrbitControls(this._camera, container);
     this.#oControls.target.set(0, 1, -2);
     this.#oControls.update();
 
     this.#previousPosition = new THREE.Vector3();
 
-    this.#dolly = new THREE.Group();
-    this.#dolly.position.set(0, 0, 3);
-    this.#dolly.name = "user";
-    this.#dolly.add(this.#camera);
-    this.#dolly.add(this.#controller1);
-    this.#dolly.add(this.#controller2);
-    this.#dolly.add(this.#controllerGrip1);
-    this.#dolly.add(this.#controllerGrip2);
+    this._dolly.add(this.#controller1);
+    this._dolly.add(this.#controller2);
+    this._dolly.add(this.#controllerGrip1);
+    this._dolly.add(this.#controllerGrip2);
   }
 
   setPosition(x: number, y: number, z: number) {
-    this.#dolly.position.set(x, y, z);
+    this._dolly.position.set(x, y, z);
     this.#oControls.update();
   }
 
-  getPosition() {
-    return this.#dolly.position;
+  getControllerData() {
+    return [
+      {
+        position: this.#controller1.position,
+        quaternion: this.#controller1.quaternion,
+      },
+      {
+        position: this.#controller2.position,
+        quaternion: this.#controller2.quaternion,
+      },
+    ];
   }
 
-  getDolly() {
-    return this.#dolly;
-  }
-
-  isMoving() {
-    return this.#moving;
+  getType(): string {
+    return "vr-user";
   }
 
   update(dt: number) {
@@ -125,12 +121,12 @@ export class VRUser {
 
     //add gamepad polling for webxr to renderloop
     this.#userMove();
-    if (this.#previousPosition.distanceTo(this.#dolly.position) > 0.01) {
-      this.#moving = true;
+    if (this.#previousPosition.distanceTo(this._dolly.position) > 0.01) {
+      this._moving = true;
     } else {
-      this.#moving = false;
+      this._moving = false;
     }
-    this.#previousPosition.copy(this.#dolly.position);
+    this.#previousPosition.copy(this._dolly.position);
   }
 
   #initController = (controllerIndex: number) => {
@@ -145,7 +141,7 @@ export class VRUser {
       new THREE.Vector3(0, 0.05, 0);
     controllerVelocityTrackingPoint.userData.name = "velocityTrackingPoint";
 
-    const controller = this.#renderer.xr.getController(controllerIndex);
+    const controller = this._renderer.xr.getController(controllerIndex);
     controller.add(controllerVelocityTrackingPoint);
     controller.userData.throwVelocities = Array.from(
       { length: 10 },
@@ -168,7 +164,7 @@ export class VRUser {
 
   #initControllerGrip = (controllerIndex: number) => {
     const controllerModelFactory = new XRControllerModelFactory();
-    const controllerGrip = this.#renderer.xr.getControllerGrip(controllerIndex);
+    const controllerGrip = this._renderer.xr.getControllerGrip(controllerIndex);
     controllerGrip.add(
       controllerModelFactory.createControllerModel(controllerGrip)
     );
@@ -258,7 +254,7 @@ export class VRUser {
     if (intersections.length > 0) {
       const intersection = intersections[0];
       // This should make the controllers vibrate but it doesn't
-      //const session = this.#renderer.xr.getSession();
+      //const session = this._renderer.xr.getSession();
       //if (session) {  //only if we are in a webXR session
       //    for (const sourceXR of session.inputSources) {
       //        if (!sourceXR.gamepad) continue;
@@ -361,11 +357,11 @@ export class VRUser {
     let handedness = "unknown";
 
     //determine if we are in an xr session
-    const session = this.#renderer.xr.getSession();
+    const session = this._renderer.xr.getSession();
 
     if (session) {
-      const xrCamera = this.#renderer.xr.getCamera(this.#camera);
-      xrCamera.getWorldDirection(this.#cameraVector);
+      const xrCamera = this._renderer.xr.getCamera(this._camera);
+      xrCamera.getWorldDirection(this._cameraVector);
 
       //a check to prevent console errors if only one input source
       if (this.#isIterable(session.inputSources)) {
@@ -390,18 +386,18 @@ export class VRUser {
                   if (data.handedness == "left") {
                     //console.log("Left Paddle Down");
                     if (i == 1) {
-                      this.#dolly.rotateY(-THREE.MathUtils.degToRad(1));
+                      this._dolly.rotateY(-THREE.MathUtils.degToRad(1));
                     }
                     if (i == 3) {
                       //reset teleport to home position
-                      this.#dolly.position.x = 0;
-                      this.#dolly.position.y = 5;
-                      this.#dolly.position.z = 0;
+                      this._dolly.position.x = 0;
+                      this._dolly.position.y = 5;
+                      this._dolly.position.z = 0;
                     }
                   } else {
                     //console.log("Right Paddle Down");
                     if (i == 1) {
-                      this.#dolly.rotateY(THREE.MathUtils.degToRad(1));
+                      this._dolly.rotateY(THREE.MathUtils.degToRad(1));
                     }
                   }
                 } else {
@@ -411,12 +407,12 @@ export class VRUser {
                     //use the paddle buttons to rotate
                     if (data.handedness == "left") {
                       //console.log("Left Paddle Down");
-                      this.#dolly.rotateY(
+                      this._dolly.rotateY(
                         -THREE.MathUtils.degToRad(Math.abs(value))
                       );
                     } else {
                       //console.log("Right Paddle Down");
-                      this.#dolly.rotateY(
+                      this._dolly.rotateY(
                         THREE.MathUtils.degToRad(Math.abs(value))
                       );
                     }
@@ -440,17 +436,17 @@ export class VRUser {
 
                     //move our user
                     //we reverse the vectors 90degrees so we can do straffing side to side movement
-                    this.#dolly.position.x -=
-                      this.#cameraVector.z *
+                    this._dolly.position.x -=
+                      this._cameraVector.z *
                       this.#speedFactor[i] *
                       data.axes[2];
-                    this.#dolly.position.z +=
-                      this.#cameraVector.x *
+                    this._dolly.position.z +=
+                      this._cameraVector.x *
                       this.#speedFactor[i] *
                       data.axes[2];
                   } else {
                     // (data.axes[2] > 0) ? console.log('left on right thumbstick') : console.log('right on right thumbstick')
-                    this.#dolly.rotateY(
+                    this._dolly.rotateY(
                       -THREE.MathUtils.degToRad(data.axes[2])
                     );
                   }
@@ -464,12 +460,12 @@ export class VRUser {
                     //user.position.y -= speedFactor[i] * data.axes[3];
                   } else {
                     // (data.axes[3] > 0) ? console.log('up on right thumbstick') : console.log('down on right thumbstick')
-                    this.#dolly.position.x -=
-                      this.#cameraVector.x *
+                    this._dolly.position.x -=
+                      this._cameraVector.x *
                       this.#speedFactor[i] *
                       data.axes[3];
-                    this.#dolly.position.z -=
-                      this.#cameraVector.z *
+                    this._dolly.position.z -=
+                      this._cameraVector.z *
                       this.#speedFactor[i] *
                       data.axes[3];
                   }
