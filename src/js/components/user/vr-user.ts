@@ -22,6 +22,7 @@ export class VRUser extends User {
   #previousPosition: THREE.Vector3;
   #raycaster;
   #physicalObjectsManager;
+  #head;
   #temp_quat;
   #temp_matrix;
   #temp_vec3;
@@ -54,6 +55,11 @@ export class VRUser extends User {
     this.#controllerGrip1 = this.#initControllerGrip(0);
     this.#controllerGrip2 = this.#initControllerGrip(1);
 
+    const headGeo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+    const headMat = new THREE.MeshPhongMaterial({ color: 0xffffff });
+    this.#head = new THREE.Mesh(headGeo, headMat);
+    this.#head.position.set(0, 1.7, 0);
+
     this.#raycaster = new THREE.Raycaster();
 
     this.#previousPosition = new THREE.Vector3();
@@ -62,6 +68,7 @@ export class VRUser extends User {
     this._dolly.add(this.#controller2);
     this._dolly.add(this.#controllerGrip1);
     this._dolly.add(this.#controllerGrip2);
+    this._dolly.add(this.#head);
   }
 
   setPosition(x: number, y: number, z: number) {
@@ -76,15 +83,15 @@ export class VRUser extends User {
       },
       {
         position: this.#controller2.position,
-        quaternion: this.#controller2.quaternion,
+        quaternion: this._camera.quaternion,
       },
     ];
   }
 
-  getCameraData() {
+  getHeadData() {
     return {
-      position: this._dolly.position,
-      quaternion: this._dolly.quaternion,
+      position: this.#head.position,
+      quaternion: this.#head.quaternion,
     };
   }
 

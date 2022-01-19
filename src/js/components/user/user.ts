@@ -56,13 +56,13 @@ export class User {
     ];
   }
 
-  //getCameraData() {
-  //  this.#temp_position.setFromMatrixPosition(this._camera.matrixWorld);
-  //  return {
-  //    position: this._camera.getWorldPosition(this.#temp_position),
-  //    quaternion: this._camera.getWorldQuaternion(this.#temp_quaternion),
-  //  };
-  //}
+  getHeadData() {
+    this.#temp_position.setFromMatrixPosition(this._camera.matrixWorld);
+    return {
+      position: this._camera.getWorldPosition(this.#temp_position),
+      quaternion: this._camera.getWorldQuaternion(this.#temp_quaternion),
+    };
+  }
 
   getType() {
     return "user";

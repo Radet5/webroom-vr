@@ -173,7 +173,7 @@ export class RoomManager {
         quaternion: this.#user.getBodyQuaternion(),
       };
       const hands = this.#user.getControllerData();
-      const head = this.#user.getCameraData();
+      const head = this.#user.getHeadData();
       const playerData = { type, body, hand0: hands[0], hand1: hands[1], head };
       this.#serverDataManager.sendToAll({
         playerData,
