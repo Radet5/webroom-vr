@@ -100,10 +100,6 @@ export class VRUser extends User {
     this._dolly.add(this.#head);
   }
 
-  setPosition(x: number, y: number, z: number) {
-    this._dolly.position.set(x, y, z);
-  }
-
   getControllerData() {
     return [
       {

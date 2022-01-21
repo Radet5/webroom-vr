@@ -22,13 +22,22 @@ export class User {
     this._dolly = new THREE.Group();
     this._dolly.name = "user";
     this._dolly.add(this._camera);
-    this._dolly.position.set(0, 0, 3);
+    this._dolly.position.set(8.3, 4.25, 12.65);
+    this._dolly.rotateY( Math.PI * 0.3);
     this.#temp_position = new THREE.Vector3();
     this.#temp_quaternion = new THREE.Quaternion();
   }
 
   getPosition() {
     return this._dolly.position;
+  }
+
+  setPosition(x: number, y: number, z: number) {
+    this._dolly.position.set(x, y, z);
+  }
+
+  translateY(y: number) {
+    this._dolly.translateY(y);
   }
 
   getBodyQuaternion() {

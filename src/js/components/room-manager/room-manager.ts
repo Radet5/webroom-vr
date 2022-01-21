@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import * as CANNON from "cannon-es";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader"
 import { VRUser } from "../user/vr-user";
 import { ScreenUser } from "../user/screen-user";
 import { PhysicalObjectsManager } from "../objects-manager/physical-objects-manager";
@@ -40,13 +41,38 @@ export class RoomManager {
       75,
       windowInnerWidth / windowInnerHeight,
       0.1,
-      10
+      100
     );
+    const scene = this.#scene;
+
+    new RGBELoader().load( "output_skybox.hdr", function ( texture ) {
+      texture.mapping = THREE.EquirectangularReflectionMapping;
+
+      scene.background = texture;
+      scene.environment = texture
+      scene.fog = new THREE.Fog("#73add9", 0.0025, 45)
+
+      const loader = new GLTFLoader();
+
+      loader.load(
+        "cliffRoom_03.gltf",
+        function (gltf) {
+          const model = gltf.scene;
+          //model.scale.set(0.01, 0.01, 0.01);
+          //model.rotateY(30);
+          scene.add(model);
+        },
+        undefined,
+        function (error) {
+          console.error(error);
+        }
+      );
+  });
 
     this.#temp_quat = new THREE.Quaternion();
 
     this.#dataSendTimeAccumulator = 0;
-    this.#dataSendTimeThreshold = 0.1;
+    this.#dataSendTimeThreshold = 0.01;
 
     this.#serverDataManager = new ServerDataManager();
 
@@ -130,6 +156,9 @@ export class RoomManager {
 
     this.#renderer = new THREE.WebGLRenderer({ antialias: true });
     this.#renderer.setSize(window.innerWidth, window.innerHeight);
+    this.#renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.#renderer.toneMappingExposure = 1;
+    this.#renderer.physicallyCorrectLights = true;
     this.#renderer.outputEncoding = THREE.sRGBEncoding;
     this.#renderer.shadowMap.enabled = true;
     this.#renderer.xr.enabled = true;
@@ -148,14 +177,14 @@ export class RoomManager {
       shape: new CANNON.Plane(),
     });
     groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0); // make it face up
-    groundBody.position.set(0, -1.325, 0);
+    groundBody.position.set(0, 2.55, 0);
     this.#world.addBody(groundBody);
 
     this.#physicalObjectsManager = new PhysicalObjectsManager(this.#world);
 
     scene.add(this.#physicalObjectsManager.getPhysObjectsMeshes());
-    this.#physicalObjectsManager.addBox("box", { x: -1, y: 0, z: 1 });
-    this.#physicalObjectsManager.addSphere("sphere", { x: 0, y: 1, z: 1.2 });
+    this.#physicalObjectsManager.addBox("box", { x: 6, y: 4, z: 12 });
+    this.#physicalObjectsManager.addSphere("sphere", { x: 7, y: 4, z: 13 });
 
     if (sessionType == "vr") {
       this.#user = new VRUser({
@@ -164,7 +193,7 @@ export class RoomManager {
         container: this.#container,
         physicalObjectsManager: this.#physicalObjectsManager,
       });
-      this.#user.setPosition(0, -1, 3);
+      this.#user.translateY(-1);
       this.#user.registerGrabObjectCallback((grabObjectData) => {
         this.#serverDataManager.sendToAll({
           grabObject: grabObjectData,
@@ -186,25 +215,10 @@ export class RoomManager {
     scene.add(this.#user.getDolly());
 
     //this.#wasPresenting = this.#renderer.xr.isPresenting;
-    const loader = new GLTFLoader();
 
-    loader.load(
-      "cliffRoom_03.gltf",
-      function (gltf) {
-        const model = gltf.scene;
-        model.scale.set(0.01, 0.01, 0.01);
-        model.rotateY(30);
-        scene.add(model);
-      },
-      undefined,
-      function (error) {
-        console.error(error);
-      }
-    );
-
-    const light = new THREE.PointLight(0xffffff, 1, 100);
-    light.position.set(1, 1, 1);
-    scene.add(light);
+    //const light = new THREE.PointLight(0xffffff, 1, 100);
+    //light.position.set(12, 5, 5);
+    //scene.add(light);
   }
 
   onWindowResize() {
@@ -225,6 +239,7 @@ export class RoomManager {
     this.#physicalObjectsManager.update();
 
     if (this.#dataSendTimeAccumulator > this.#dataSendTimeThreshold) {
+      //console.log(JSON.stringify(this.#user.getPosition(), null, 2));
       this.#dataSendTimeAccumulator = 0;
       const type = this.#user.getType();
       const body = {
