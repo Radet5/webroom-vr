@@ -35,7 +35,8 @@ div.appendChild(vrButton);
 div.appendChild(kbmButton);
 document.body.appendChild(div);
 const img = document.createElement("img");
-img.src = "https://www.fg-a.com/under-construction/flashing-construction-sign.gif";
+img.src =
+  "https://www.fg-a.com/under-construction/flashing-construction-sign.gif";
 img.style.display = "block";
 img.style.margin = "30px auto";
 div.appendChild(img);

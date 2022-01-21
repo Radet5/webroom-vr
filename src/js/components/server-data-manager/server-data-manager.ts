@@ -45,7 +45,7 @@ export class ServerDataManager {
 
   sendToAll(data: any) {
     this.#peers.forEach((peer: PeerData) => {
-      if (peer.connected) {
+      if (peer && peer.connected) {
         peer.peer.send(JSON.stringify({ userID: this.#socket.id, data }));
       }
     });
