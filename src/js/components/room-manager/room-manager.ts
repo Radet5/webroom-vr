@@ -193,7 +193,7 @@ export class RoomManager {
         container: this.#container,
         physicalObjectsManager: this.#physicalObjectsManager,
       });
-      this.#user.translateY(-1);
+      this.#user.translateY(-1.2);
       this.#user.registerGrabObjectCallback((grabObjectData) => {
         this.#serverDataManager.sendToAll({
           grabObject: grabObjectData,
